@@ -2,9 +2,10 @@ require 'nickel/construct'
 require 'nickel/zdate'
 require 'nickel/ztime'
 
+
 module Nickel
   class ConstructFinder
-    attr_reader :constructs, :components
+    attr_reader :constructs, :components, :last_pos
 
     def initialize(query, curdate, curtime)
       @curdate = curdate
@@ -18,6 +19,9 @@ module Nickel
       while @pos < @components.size
         big_if_on_current_word
         @pos += 1
+        if constructs.length > 0     #sm - at least one construct found - save the last postion of the last construct
+           @last_pos = constructs[constructs.length-1].comp_end
+        end
       end
     end
 
@@ -93,9 +97,37 @@ module Nickel
           found_for_x_months                              # for 10 months
         end
 
+# sm- ADDED        
+      elsif match_previous
+        if match_previous_weekend
+          found_previous_weekend                              
+        elsif match_previous_dayname
+          found_previous_dayname                              # previous tuesday
+        elsif match_previous_x
+          if match_previous_x_days
+            found_previous_x_days                             # previous 5 days   --- shouldn't this be a wrapper?
+          elsif match_previous_x_weeks
+            found_previous_x_weeks                            # previous 5 weeks  --- shouldn't this be a wrapper?
+          elsif match_previous_x_months
+            found_previous_x_months                           # previous 5 months --- shouldn't this be a wrapper?
+          elsif match_previous_x_years
+            found_previous_x_years                            # previous 5 years  --- shouldn't this be a wrapper?
+          end
+        elsif match_previous_week
+          found_previous_week
+        elsif match_previous_month
+          found_previous_month                                # previous month (implies 10/1 to 10/31)
+        end
+
+      elsif match_thiscoming                              # the logic for this and next dayname has been changed to refer to the
+        if match_thiscoming_dayname                       # current or following week. If the user means the next occrence,
+          found_thiscoming_dayname                        # then we are using the token 'this coming'
+        end
+#sm--------------------------------
+
       elsif match_this
         if match_this_dayname
-          found_this_dayname                              # this fri
+          found_thiscoming_dayname          # sm - I changed this to always find the next ocurrence since meetings are always in the future
         elsif match_this_week
           found_this_week                                 # this week
         elsif match_this_month
@@ -122,6 +154,23 @@ module Nickel
         elsif match_next_month
           found_next_month                                # next month (implies 10/1 to 10/31)
         end
+
+      elsif match_week_after_next
+        found_week_after_next
+
+      elsif match_theweekafter
+        if match_theweekafter_date
+          found_theweekafter_date
+        end
+
+# sm - add the day after
+      elsif match_thedayafter
+        if match_thedayafter_tomorrow
+          found_thedayafter_tomorrow
+        elsif match_thedayafter_holiday
+          found_thedayafter_holiday
+        end
+ #---------------
 
       elsif match_week
         if match_week_of_date
@@ -208,7 +257,7 @@ module Nickel
           found_first_day_monthname                     # first day january (well this is stupid, "first day of january" gets preprocessed into "1/1", so what is the point of this?)
         end
 
-      elsif match_last_day
+      elsif match_last_day                              #sm - I have changed this so that the token is 'thelast'
         if match_last_day_this_month
           found_last_day_this_month                     # last day this month
         elsif match_last_day_next_month
@@ -264,6 +313,8 @@ module Nickel
           found_dayname_x_weeks_from_next               # monday 2 weeks from next
         elsif match_dayname_x_weeks_from_this
           found_dayname_x_weeks_from_this               # monday 2 weeks from this
+        elsif match_dayname_after_next
+          found dayname_after_next
         else
           found_dayname                                 # monday (also monday tuesday wed...)
         end
@@ -530,8 +581,111 @@ module Nickel
       @constructs << WrapperConstruct.new(wrapper_type: 4, wrapper_length: @length, comp_start: @pos, comp_end: @pos += 2, found_in: __method__)
     end
 
+    #sm - I have added all of the previous methods since the program was not trapping for this but there is logic in zdate
+    # for handling prior dates/days/weeks/months
+    def match_previous
+      @components[@pos] == 'previous'
+    end
+
+    def match_previous_weekend
+      @components[@pos + 1] == 'weekend'   # "previous weekend"
+    end
+
+    def found_previous_weekend
+      dsc = DateSpanConstruct.new(start_date: @curdate.prev(5), comp_start: @pos, comp_end: @pos += 1, found_in: __method__)
+      dsc.end_date = dsc.start_date.add_days(1)
+      @constructs << dsc
+    end
+
+    def match_previous_dayname
+      @day_index = ZDate.days_of_week.index(@components[@pos + 1])  # if "previous [day]"
+    end
+
+    def found_previous_dayname
+      day_to_add = @curdate.prev(@day_index)
+      @constructs << DateConstruct.new(date: day_to_add, comp_start: @pos, comp_end: @pos += 1, found_in: __method__)
+      while @components[@pos + 1] && @day_index = ZDate.days_of_week.index(@components[@pos + 1])
+        # note @pos gets incremented on each pass
+        @constructs << DateConstruct.new(date: day_to_add = day_to_add.this(@day_index), comp_start: @pos + 1, comp_end: @pos += 1, found_in: __method__)
+      end
+    end
+
+    def match_previous_x
+      @components[@pos + 1] && ConstructFinder.digits_only?(@components[@pos + 1]) && @length = @components[@pos + 1].to_i
+    end
+
+    def match_previous_x_days
+      @components[@pos + 2] =~ /days?/                              # "previous x days"
+    end
+
+    def found_previous_x_days
+      @constructs << DateSpanConstruct.new(start_date: @curdate, end_date: @curdate.add_days(-1 * @length), comp_start: @pos, comp_end: @pos += 2, found_in: __method__)
+    end
+
+    def match_previous_x_weeks
+      @components[@pos + 2] =~ /weeks?/                             # "previous x weeks"
+    end
+
+    def found_previous_x_weeks
+      @constructs << DateSpanConstruct.new(start_date: @curdate, end_date: @curdate.add_weeks(-1 * @length), comp_start: @pos, comp_end: @pos += 2, found_in: __method__)
+    end
+
+    def match_previous_x_months
+      @components[@pos + 2] =~ /months?/                             # "previous x months"
+    end
+
+    def found_previous_x_months
+      @constructs << DateSpanConstruct.new(start_date: @curdate, end_date: @curdate.add_months(-1 * @length), comp_start: @pos, comp_end: @pos += 2, found_in: __method__)
+    end
+
+    def match_previous_x_years
+      @components[@pos + 2] =~ /years?/                          # "previous x years"
+    end
+
+    def found_previous_x_years
+      @constructs << DateSpanConstruct.new(start_date: @curdate, end_date: @curdate.add_years(-1 * @length), comp_start: @pos, comp_end: @pos += 2, found_in: __method__)
+    end
+
+    def match_previous_week
+      @components[@pos + 1] =~ /weeks?/
+    end
+
+    def found_previous_week
+      sd = @curdate.prev(0)
+      ed = sd.add_days(6)
+      @constructs << DateSpanConstruct.new(start_date: sd, end_date: ed, comp_start: @pos, comp_end: @pos += 1, found_in: __method__)
+    end
+
+    def match_previous_month
+      @components[@pos + 1] =~ /months?/
+    end
+
+    def found_previous_month
+      sd = @curdate.add_months(-1).beginning_of_month
+      ed = sd.end_of_month
+      @constructs << DateSpanConstruct.new(start_date: sd, end_date: ed, comp_start: @pos, comp_end: @pos += 1, found_in: __method__)
+    end
+#sm -----------------------------------------------------------------
+
     def match_this
       @components[@pos] == 'this'
+    end
+
+    def match_thiscoming
+      @components[@pos] == 'thiscoming'
+    end
+
+    def match_thiscoming_dayname
+      @day_index = ZDate.days_of_week.index(@components[@pos + 1])
+    end
+
+    def found_thiscoming_dayname
+      day_to_add = @curdate.thiscoming(@day_index)
+      @constructs << DateConstruct.new(date: day_to_add, comp_start: @pos, comp_end: @pos += 1, found_in: __method__)
+      while @components[@pos + 1] && @day_index = ZDate.days_of_week.index(@components[@pos + 1])
+        # note @pos gets incremented on each pass
+        @constructs << DateConstruct.new(date: day_to_add = day_to_add.thiscoming(@day_index), comp_start: @pos + 1, comp_end: @pos += 1, found_in: __method__)
+      end
     end
 
     def match_this_dayname
@@ -630,20 +784,78 @@ module Nickel
       @components[@pos + 1] =~ /weeks?/
     end
 
-    def found_next_week
-      sd = @curdate.add_days(7)
-      ed = sd.add_days(7)
+    def found_next_week                 # sm - this date logic is wrong - should be the next week starting on Monday
+      #sd = @curdate.add_days(7)
+      sd = @curdate.next(0)
+      ed = sd.add_days(6)               # sm - changed add_days to 6 from 7 - the week ends on Sunday, not Monday
       @constructs << DateSpanConstruct.new(start_date: sd, end_date: ed, comp_start: @pos, comp_end: @pos += 1, found_in: __method__)
     end
 
+    def match_week_after_next
+      @components[@pos] == 'theweekafternext'
+    end
+
+    def found_week_after_next
+      sd = @curdate.x_weeks_from_day(2,0)
+      ed = sd.add_days(6)
+      @constructs << DateSpanConstruct.new(start_date: sd, end_date: ed, comp_start: @pos, comp_end: @pos, found_in: __method__)
+    end
+
+# sm -------------------------
+    def match_thedayafter
+      @components[@pos] == 'thedayafter'
+    end
+
+    def match_thedayafter_tomorrow
+      @components[@pos + 1] == 'tomorrow'
+    end
+
+    def found_thedayafter_tomorrow
+      @constructs << DateConstruct.new(date: @curdate.add_days(2), comp_start: @pos, comp_end: @pos +=1, found_in: __method__)
+    end
+
+#    def match_thedayafter_holiday
+#      @components[@pos + 1] == 'tomorrow'
+#    end
+
+ #   def found_thedayafter_holiday
+ #     @constructs << DateConstruct.new(date: @curdate.add_days(2), comp_start: @pos, comp_end: @pos +=1, found_in: __method__)
+ #   end
+
+    def match_thedaybefore
+      @components[@pos] == 'thedaybefore'
+    end
+
+#    def match_thedayafter_holiday
+#      @components[@pos + 1] == '?????'
+#    end
+
+#    def found_thedayafter_holiday
+#      @constructs << DateConstruct.new(date: @curdate.add_days(2), comp_start: @pos, comp_end: @pos +=1, found_in: __method__)
+#    end
+
+    def match_theweekafter
+      @components[@pos] == 'theweekafter'
+    end
+
+    def match_theweekafter_date
+      @date1 = ZDate.interpret(@components[@pos + 1], @curdate)
+    end
+
+    def found_theweekafter_date
+      sd = @date1.add_days((7 - @date1.dayindex) % 7)
+      ed = sd.add_days(6)
+      @constructs << DateSpanConstruct.new(start_date: sd, end_date: ed, comp_start: @pos, comp_end: @pos += 1, found_in: __method__)
+    end
+    #sm ---------------------------
     def match_next_month
       # note it is important that all other uses of "next month" come after indicating words such as "every day next month"; otherwise they will be converted here
       @components[@pos + 1] =~ /months?/
     end
 
     def found_next_month
-      sd = @curdate.add_months(1).beginning_of_month
-      ed = sd.end_of_month
+      @sd = @curdate.add_months(1).beginning_of_month
+      @ed = @sd.end_of_month
       @constructs << DateSpanConstruct.new(start_date: sd, end_date: ed, comp_start: @pos, comp_end: @pos += 1, found_in: __method__)
     end
 
@@ -655,8 +867,10 @@ module Nickel
       @components[@pos + 1] == 'of' && @date1 = ZDate.interpret(@components[@pos + 2], @curdate)
     end
 
-    def found_week_of_date
-      @constructs << DateSpanConstruct.new(start_date: @date1, end_date: @date1.add_days(7), comp_start: @pos, comp_end: @pos += 2, found_in: __method__)
+    def found_week_of_date      # sm - modify to represent a week starting on Monday
+      @sd = @date1.add_days(- @date1.dayindex)
+      @ed = @sd.add_days(6)
+      @constructs << DateSpanConstruct.new(start_date: @sd, end_date: @ed, comp_start: @pos, comp_end: @pos += 2, found_in: __method__)
     end
 
     def match_week_through_date
@@ -664,7 +878,7 @@ module Nickel
     end
 
     def found_week_through_date
-      @constructs << DateSpanConstruct.new(start_date: @date1.sub_days(7), end_date: @date1, comp_start: @pos, comp_end: @pos += 2, found_in: __method__)
+      @constructs << DateSpanConstruct.new(start_date: @date1.sub_days(6), end_date: @date1, comp_start: @pos, comp_end: @pos += 2, found_in: __method__)
     end
 
     def match_x_weeks_from
@@ -804,8 +1018,7 @@ module Nickel
 
     def found_x_dayname_from_now
       # this isn't exactly intuitive.  If someone says "two tuesday from now" and it is tuesday, they mean "in two weeks."  If it is not tuesday, they mean "next tuesday"
-      d = (@days_index == @curdate.dayindex) ? @curdate.add_weeks(@length) : @curdate.x_weeks_from_day(@length - 1, @day_index)
-      @constructs << DateConstruct.new(date: d, comp_start: @pos, comp_end: @pos += 3, found_in: __method__)
+      @constructs << DateConstruct.new(date: @curdate.x_weeks_from_day(@length,@day_index), comp_start: @pos, comp_end: @pos += 3, found_in: __method__)
     end
 
     def match_x_dayname_from_tomorrow
@@ -959,7 +1172,7 @@ module Nickel
     end
 
     def match_last_day
-      @components[@pos] == 'last' && @components[@pos + 1] == 'day'     # last day
+      @components[@pos] == 'thelast' && @components[@pos + 1] == 'day'     # last day - sm- changed to thelast
     end
 
     def match_last_day_this_month
@@ -1139,14 +1352,27 @@ module Nickel
       @constructs << h
     end
 
-    # redundant, same as found_this_dayname
+    def match_dayname_after_next
+      @components[@pos + 1] == 'after' && @components[@pos + 2] == 'next' # "monday after next
+    end
+
+    def found_dayname_after_next
+      day_to_add = @curdate.after_next(@day_index)
+      @constructs << DateConstruct.new(date: day_to_add, comp_start: @pos, comp_end: @pos += 2, found_in: __method__)
+#      while @components[@pos + 1] && @day_index = ZDate.days_of_week.index(@components[@pos + 1])
+#        # note @pos gets incremented on each pass
+#        @constructs << DateConstruct.new(date: day_to_add = day_to_add.this(@day_index), comp_start: @pos + 1, comp_end: @pos += 1, found_in: __method__)
+#      end
+    end
+
+    # sm - modified to always be the next ocurrence of this day
     def found_dayname
-      day_to_add = @curdate.this(@day_index)
+      day_to_add = @curdate.thiscoming(@day_index)
       @constructs << DateConstruct.new(date: day_to_add, comp_start: @pos, comp_end: @pos, found_in: __method__)
-      while @components[@pos + 1] && @day_index = ZDate.days_of_week.index(@components[@pos + 1])
-        # note @pos gets incremented here:
-        @constructs << DateConstruct.new(date: day_to_add = day_to_add.this(@day_index), comp_start: @pos + 1, comp_end: @pos += 1, found_in: __method__)
-      end
+#      while @components[@pos + 1] && @day_index = ZDate.days_of_week.index(@components[@pos + 1])
+#        # note @pos gets incremented here:
+#        @constructs << DateConstruct.new(date: day_to_add = day_to_add.this(@day_index), comp_start: @pos + 1, comp_end: @pos += 1, found_in: __method__)
+#      end
     end
 
     def match_through_monthname

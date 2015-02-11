@@ -1,4 +1,6 @@
 require 'date'
+require 'holidays'
+require 'holidays/us'
 
 module Nickel
   # TODO: get methods should accept dayname or dayindex
@@ -96,6 +98,13 @@ module Nickel
       self == ZDate.new
     end
 
+    # returns true if self is a holiday
+    def holiday?
+      @holiday = holidays.new
+
+    end
+
+
     # for example, "1st friday", uses self as the reference month
     def ordinal_dayindex(num, day_index)
       # create a date object at the first occurrence of day_index
@@ -114,14 +123,36 @@ module Nickel
       d
     end
 
-    # for example, "this friday"
+    # for example, "this friday" - sm - I have modified this to mean the current week unless it is today
     def this(day)
-      x_weeks_from_day(0, day)
+      if dayindex == day          #today
+        x_weeks_from_day(1, day)
+      else
+        x_weeks_from_day(0, day)
+      end
     end
 
-    # for example, "next friday"
+    # sm - for example, "this coming friday" this means the next instance of this day regardless of week
+    def thiscoming(day)   # day is an index
+      if dayindex < day
+        x_weeks_from_day(0, day)
+      else
+        x_weeks_from_day(1,day)   # the day is next week
+      end
+    end
+
+    # for example, "next friday" - sm - I have modified this to mean the following week
     def next(day)
       x_weeks_from_day(1, day)
+    end
+
+    # sm -
+    def after_next(day)
+      if dayindex < day
+        x_weeks_from_day(1, day)
+      else
+        x_weeks_from_day(2,day)
+      end
     end
 
     # for example, "previous friday"
@@ -129,13 +160,14 @@ module Nickel
       (dayindex == day) ? dup : x_weeks_from_day(-1, day)
     end
 
-    # returns a new date object
+    # returns a new date object - sm made changes so that "next Friday" refers to the Friday of the following week not the
+    # next occurence of Friday
     def x_weeks_from_day(weeks_away, day2index)
       day1index = dayindex
       if day1index > day2index
-        days_away = 7 * (weeks_away + 1) - (day1index - day2index)
+        days_away = (7 * weeks_away) - (day1index - day2index)      #sm - removed the +1 from the weeks_away
       elsif day1index < day2index
-        days_away = (weeks_away * 7) + (day2index - day1index)
+        days_away = (7 * weeks_away) + (day2index - day1index)
       elsif day1index == day2index
         days_away = 7 * weeks_away
       end

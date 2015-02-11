@@ -16,7 +16,7 @@ module Nickel
       finalize_constructs
     end
 
-    def run
+    def run                 # sm- does not trap for a mix of date_span and one_date, nor multiple spans
       if found_dates
         occurrences_from_dates
       elsif found_one_date_span

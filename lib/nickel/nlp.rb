@@ -9,7 +9,7 @@ module Nickel
   class NLP
     attr_reader :query, :input_date, :input_time, :nlp_query
     attr_reader :construct_finder, :construct_interpreter
-    attr_reader :occurrences, :message
+    attr_reader :occurrences, :message, :last_pos
 
     def initialize(query, date_time = Time.now)
       str_time = date_time.strftime('%Y%m%dT%H%M%S')
@@ -20,9 +20,13 @@ module Nickel
     end
 
     def parse
+      # sm - modified to first parse message into sentences and then loop through each sentence
+
+
       @nlp_query = NLPQuery.new(@query).standardize   # standardizes the query
       @construct_finder = ConstructFinder.new(@nlp_query, @input_date, @input_time)
       @construct_finder.run
+      @last_pos = @construct_finder.last_pos
 
       extract_message
       correct_case

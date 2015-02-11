@@ -85,6 +85,7 @@ module Nickel
       nsub!(/weeknd/, 'weekend')
       nsub!(/weekends/, 'every sat sun')
       nsub!(/everyother/, 'every other')
+      nsub!(/w\W+o/, 'week of')
       nsub!(/weak/, 'week')
       nsub!(/everyweek/, 'every week')
       nsub!(/everymonth/, 'every month')
@@ -106,15 +107,31 @@ module Nickel
     end
 
     def remove_unnecessary_words
-      nsub!(/coming/, '')
+      nsub!(/this coming/, 'thiscoming')        #sm - to mean the next occurence
+      nsub!(/the next/, 'thiscoming')           #sm -
+      nsub!(/the day after next/, 'thedayafter tomorrow')     #sm -
+      nsub!(/the week after next/, 'theweekafternext')     #sm -
+      nsub!(/the day after/, 'thedayafter')     #sm - when used with 'tomorrow' or a holiday
+      nsub!(/the week after/, 'theweekafter')   #sm - when used with a holdiay or a date
+      nsub!(/the month after/, 'themonthafter') #sm - when used with a holdiay or a date
+      nsub!(/the day before/, 'thedaybefore')   #sm - use with a holiday
+      nsub!(/the week before/, 'theweekbefore')   #sm - use with a holiday or date
+      nsub!(/the month before/, 'theweekbefore')   #sm - use with a holiday or date
+      nsub!(/(a|any)\s*(day|days)\s+(before)/, 'anydaybefore')    #sm
+      nsub!(/(a|any)\s*(day|days)\s+(after)/, 'anydayafter')    #sm
       nsub!(/o'?clock/, '')
       nsub!(/\btom\b/, 'tomorrow')
-      nsub!(/\s*in\s+(the\s+)?(morning|am)/, ' am')
-      nsub!(/\s*in\s+(the\s+)?(afternoon|pm|evenn?ing)/, ' pm')
-      nsub!(/\s*at\s+night/, 'pm')
-      nsub!(/(after\s*)?noon(ish)?/, '12:00pm')
+      # sm - I have set definitions for am, pm, evening and night here - perhaps better is to pass these as parameters
+      nsub!(/\s*in\s+(the\s+)?(morning|am)/, ' at 8am through 12pm')
+      nsub!(/\s*in\s+(the\s+)?(afternoon|pm)/, ' at 12pm through 6pm')
+      nsub!(/\s*in\s+(the\s+)even+ing/, ' at 5pm through 8pm')
+      nsub!(/\s*at\s+night/, ' at 8pm through 12am')
+      nsub!(/morning/, ' at 8am through 12pm')
+      nsub!(/(after\s*)?noon(ish)?/, ' at 12pm through 6pm')
+      # ------------------------------------------------
       nsub!(/\bmi(dn|nd)ight\b/, '12:00am')
-      nsub!(/final/, 'last')
+      nsub!(/final/, 'thelast')                 # sm - need to distinguish between final and prior - "thelast" means final
+      nsub!(/the last/, 'thelast')              # sm - if the token is just "last" then it will be interpretted as prior
       nsub!(/recur(s|r?ing)?/, 'repeats')
       nsub!(/\beach\b/, 'every')
       nsub!(/running\s+(until|through)/, 'through')
@@ -381,12 +398,12 @@ module Nickel
     def standardize_am_pm
       nsub!(/([0-9])(?:\s*)a\b/, '\1am')  # allows 5a as 5am
       nsub!(/([0-9])(?:\s*)p\b/, '\1pm')  # allows 5p as 5pm
-      nsub!(/\s+am\b/, 'am')  # removes any spaces before am, shouldn't I check for preceeding digits?
-      nsub!(/\s+pm\b/, 'pm')  # removes any spaces before pm, shouldn't I check for preceeding digits?
+      nsub!(/(\d)\s+(am\b)/, '\1\2')          # removes any spaces before am, YESYESYES shouldn't I check for preceeding digits?
+      nsub!(/(\d)\s+(pm\b)/, '\1\2')          # removes any spaces before pm, YESYESYES shouldn't I check for preceeding digits?
     end
 
-    def replace_hyphens
-      nsub!(/--?/, ' through ')
+    def replace_hyphens   # when between numbers or days of week
+      nsub!(/(#{DAY_OF_WEEK}-+#{DAY_OF_WEEK}|\d+-+\d+)/, ' through ')
     end
 
     def insert_repeats_before_words_indicating_recurrence_lame
@@ -412,8 +429,9 @@ module Nickel
 
     attr_accessor :query_str
 
-    def standardize_input
-      nsub!(/last\s+#{DAY_OF_WEEK}/, '5th \1')     # last dayname  =>  5th dayname
+    def standardize_input  # sm - "thelast" refers to the final day in the month while "last" means "prior"
+      nsub!(/thelast\s+#{DAY_OF_WEEK}/, '5th \1')     #sm -  thelast dayname  =>  5th dayname
+      nsub!(/last/, 'previous')                          #sm - last => previous
       nsub!(/\ba\s+(week|month|day)/, '1 \1')     # a month|week|day  =>  1 month|week|day
       nsub!(/^(through|until)/, 'today through')   # ^through  =>  today through
       nsub!(/every\s*(night|morning)/, 'every day')
@@ -575,7 +593,10 @@ module Nickel
       end
 
       # "the wed after next" --> 2 wed from today
-      nsub!(/(?:the\s+)?#{DAY_OF_WEEK}\s+(?:after|following)\s+(?:the\s+)?next/, '2 \1 from today')
+      nsub!(/(?:the\s+)?#{DAY_OF_WEEK}\s+(?:after|following)\s+(?:the\s+)?next/, '2 \1 from now')
+
+      # "3 weeks after this monday" --> 3 monday from today
+      nsub!(/(\d+)\s+weeks\s+(after|from)\s*(this|next|this coming)*\s*?#{DAY_OF_WEEK}/, '\1 \4 from now')
 
       # "mon and tue" --> mon tue
       nsub!(/(#{DAY_OF_WEEK}\s+and\s+#{DAY_OF_WEEK})(?:\s+and)?/, '\2 \3')
