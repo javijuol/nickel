@@ -1,6 +1,4 @@
 require 'date'
-require 'holidays'
-require 'holidays/us'
 
 module Nickel
   # TODO: get methods should accept dayname or dayindex
@@ -97,13 +95,6 @@ module Nickel
     def today?
       self == ZDate.new
     end
-
-    # returns true if self is a holiday
-    def holiday?
-      @holiday = holidays.new
-
-    end
-
 
     # for example, "1st friday", uses self as the reference month
     def ordinal_dayindex(num, day_index)
