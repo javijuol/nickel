@@ -28,7 +28,6 @@ Gem::Specification.new do |s|
       s.add_development_dependency(%q<codeclimate-test-reporter>, [">= 0"])
       s.add_development_dependency(%q<yard>, [">= 0"])
       s.add_development_dependency(%q<kramdown>, [">= 0"])
-      s.add_development_dependency(%q<holidays>, [">= 0"])
     else
       s.add_dependency(%q<bundler>, [">= 0"])
       s.add_dependency(%q<rake>, [">= 0"])
@@ -36,7 +35,6 @@ Gem::Specification.new do |s|
       s.add_dependency(%q<codeclimate-test-reporter>, [">= 0"])
       s.add_dependency(%q<yard>, [">= 0"])
       s.add_dependency(%q<kramdown>, [">= 0"])
-      s.add_dependency 'holidays'
     end
   else
     s.add_dependency(%q<bundler>, [">= 0"])
@@ -45,6 +43,6 @@ Gem::Specification.new do |s|
     s.add_dependency(%q<codeclimate-test-reporter>, [">= 0"])
     s.add_dependency(%q<yard>, [">= 0"])
     s.add_dependency(%q<kramdown>, [">= 0"])
-    s.add_dependency 'holidays'
   end
+  s.add_dependency(%q<holidays>, [">= 0"])
 end
