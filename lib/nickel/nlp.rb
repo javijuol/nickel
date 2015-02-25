@@ -4,6 +4,7 @@ require 'nickel/nlp_query'
 require 'nickel/occurrence'
 require 'nickel/construct_finder'
 require 'nickel/construct_interpreter'
+require 'holidays_wrapper'
 
 module Nickel
   class NLP
