@@ -6,7 +6,6 @@
 
 require 'nickel/version'
 require 'nickel/nlp'
-require 'holidays_wrapper'
 
 module Nickel
   class << self
