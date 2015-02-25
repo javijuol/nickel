@@ -85,7 +85,7 @@ module Nickel
       nsub!(/weeknd/, 'weekend')
       nsub!(/weekends/, 'every sat sun')
       nsub!(/everyother/, 'every other')
-      nsub!(/w\W+o/, 'week of')
+      nsub!(/w\/o/, 'week of')
       nsub!(/weak/, 'week')
       nsub!(/everyweek/, 'every week')
       nsub!(/everymonth/, 'every month')

@@ -15,6 +15,8 @@ module Nickel
       self.time = t
       if am_pm
         adjust_for(am_pm)
+      else
+        adjust_for_workday
       end
     end
 
@@ -367,6 +369,16 @@ module Nickel
         fail 'ZTime#adjust_for says: you passed an invalid value for am_pm, use :am or :pm'
       end
       @firm = true
+    end
+
+    # sm ---------------
+    def adjust_for_workday
+      defaults = User.new
+      sod_min = defaults.starting_day[:hour] * 60 + defaults.starting_day[:min]
+      eod_min = defaults.ending_day[:hour] * 60 + defaults.ending_day[:min]
+      if hour*60 + min < sod_min and hour*60 + min <= eod_min           # leave in am if converted to pm is too late
+        change_hour_to(ZTime.pm_to_24hr(hour))
+      end
     end
 
     def validate
