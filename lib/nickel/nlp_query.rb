@@ -425,7 +425,7 @@ module Nickel
     end
 
     def replace_hyphens   # when between numbers or days of week
-      nsub!(/(#{DAY_OF_WEEK}-+#{DAY_OF_WEEK}|\d+-+\d+)/, ' through ')
+      nsub!(/(-+#{DAY_OF_WEEK}|\d+-+\d+)/, ' through ')
     end
 
     def convert_holidays_to_dates
@@ -632,7 +632,7 @@ module Nickel
       nsub!(/(\d+)\s+weeks\s+(after|from)\s*(this|next|this coming)*\s*?#{DAY_OF_WEEK}/, '\1 \4 from now')
 
       # "mon and tue" --> mon tue
-      nsub!(/(#{DAY_OF_WEEK}\s+and\s+#{DAY_OF_WEEK})(?:\s+and)?/, '\2 \3')
+      nsub!(/(#{DAY_OF_WEEK}\s+(and|or)\s+#{DAY_OF_WEEK})(?:\s+(and|or))?/, '\2 \4')
 
       # "mon wed every week" --> every mon wed
       nsub!(/((#{DAY_OF_WEEK}(?:\s*)){1,7})(?:of\s+)?(?:every|each)(\s+other)?\s+week/, 'every \4 \1')
@@ -646,8 +646,8 @@ module Nickel
       # "every mon and every tue and.... " --> every mon tue ...
       nsub!(/every\s+#{DAY_OF_WEEK}\s+(?:and\s+)?every\s+#{DAY_OF_WEEK}(?:\s+(?:and\s+)?every\s+#{DAY_OF_WEEK})?(?:\s+(?:and\s+)?every\s+#{DAY_OF_WEEK})?(?:\s+(?:and\s+)?every\s+#{DAY_OF_WEEK})?/, 'every \1 \2 \3 \4 \5')
 
-      # monday, wednesday, and friday next week at 8
-      nsub!(/((?:#{DAY_OF_WEEK_NB}\s+(?:and\s+)?){1,7})(?:of\s+)?(this|next)\s+week/, '\2 \1')
+      # monday, wednesday, and/or friday next week at 8
+      nsub!(/((?:#{DAY_OF_WEEK_NB}\s+(?:(and|or)\s+)?){1,7})(?:of\s+)?(this|next)\s+week/, '\3 \2')
 
       # "every day this|next week"  --> returns monday through friday of the closest week, kinda stupid
       # doesn't do that anymore, no date calculations allowed here, instead just formats it nicely for construct finders --> every day this|next week
