@@ -163,14 +163,22 @@ module Nickel
           found_theweekafter_date
         end
 
-# sm - add the day after
+      elsif match_theweekbefore
+        if match_theweekbefore_date
+          found_theweekbefore_date
+        end
+
       elsif match_thedayafter
         if match_thedayafter_tomorrow
           found_thedayafter_tomorrow
-        elsif match_thedayafter_holiday
-          found_thedayafter_holiday
+        elsif match_thedayafter_date
+          found_thedayafter_date
         end
- #---------------
+
+      elsif match_thedaybefore
+        if match_thedaybefore_date
+          found_thedaybefore_date
+        end
 
       elsif match_week
         if match_week_of_date
@@ -307,7 +315,11 @@ module Nickel
         end
 
       elsif match_dayname
-        if match_dayname_the_ordinal
+        if match_dayname_after_date
+          found_dayname_after_date
+        elsif match_dayname_before_date
+          found_dayname_before_date
+        elsif match_dayname_the_ordinal
           found_dayname_the_ordinal                     # monday the 21st
         elsif match_dayname_x_weeks_from_next
           found_dayname_x_weeks_from_next               # monday 2 weeks from next
@@ -814,25 +826,26 @@ module Nickel
       @constructs << DateConstruct.new(date: @curdate.add_days(2), comp_start: @pos, comp_end: @pos +=1, found_in: __method__)
     end
 
-#    def match_thedayafter_holiday
-#      @components[@pos + 1] == 'tomorrow'
-#    end
+    def match_thedayafter_date
+      @date1 = ZDate.interpret(@components[@pos + 1], @curdate)
+    end
 
- #   def found_thedayafter_holiday
- #     @constructs << DateConstruct.new(date: @curdate.add_days(2), comp_start: @pos, comp_end: @pos +=1, found_in: __method__)
- #   end
+    def found_thedayafter_date
+      @constructs << DateConstruct.new(date: @date1.add_days(1), comp_start: @pos, comp_end: @pos +=1, found_in: __method__)
+    end
 
     def match_thedaybefore
       @components[@pos] == 'thedaybefore'
     end
 
-#    def match_thedayafter_holiday
-#      @components[@pos + 1] == '?????'
-#    end
+    def match_thedaybefore_date
+      @date1 = ZDate.interpret(@components[@pos + 1], @curdate)
+    end
 
-#    def found_thedayafter_holiday
-#      @constructs << DateConstruct.new(date: @curdate.add_days(2), comp_start: @pos, comp_end: @pos +=1, found_in: __method__)
-#    end
+    def found_thedaybefore_date
+      @constructs << DateConstruct.new(date: @date1.add_days(-1), comp_start: @pos, comp_end: @pos +=1, found_in: __method__)
+    end
+
 
     def match_theweekafter
       @components[@pos] == 'theweekafter'
@@ -847,6 +860,22 @@ module Nickel
       ed = sd.add_days(6)
       @constructs << DateSpanConstruct.new(start_date: sd, end_date: ed, comp_start: @pos, comp_end: @pos += 1, found_in: __method__)
     end
+
+    def match_theweekbefore
+      @components[@pos] == 'theweekbefore'
+    end
+
+    def match_theweekbefore_date
+      @date1 = ZDate.interpret(@components[@pos + 1], @curdate)
+    end
+
+    def found_theweekbefore_date
+      sd = @date1.add_days(-(((@date1.dayindex+2) % 7) + 5))
+      ed = sd.add_days(6)
+      @constructs << DateSpanConstruct.new(start_date: sd, end_date: ed, comp_start: @pos, comp_end: @pos += 1, found_in: __method__)
+    end
+
+
     #sm ---------------------------
     def match_next_month
       # note it is important that all other uses of "next month" come after indicating words such as "every day next month"; otherwise they will be converted here
@@ -1093,6 +1122,8 @@ module Nickel
       @constructs << TimeConstruct.new(time: time, comp_start: @pos, comp_end: @pos += 4, found_in: __method__)
     end
 
+
+
     def match_ordinal_dayname
       @components[@pos] =~ /(1st|2nd|3rd|4th|5th)/ && (@day_index = ZDate.days_of_week.index(@components[@pos + 1])) && @week_num = @components[@pos].to_i     # last saturday
     end
@@ -1311,6 +1342,24 @@ module Nickel
 
     def match_dayname
       @day_index = ZDate.days_of_week.index(@components[@pos])
+    end
+
+    def match_dayname_after_date
+      @components[@pos + 1] == 'after' && @date1 = ZDate.interpret(@components[@pos + 2], @curdate)
+    end
+
+    def found_dayname_after_date
+      date = @date1.add_days(7 - ((7 + @date1.dayindex - @day_index) % 7))
+      @constructs << DateConstruct.new(date: date, comp_start: @pos, comp_end: @pos += 2, found_in: __method__)
+    end
+
+    def match_dayname_before_date
+      @components[@pos + 1] == 'before' && @date1 = ZDate.interpret(@components[@pos + 2], @curdate)
+    end
+
+    def found_dayname_before_date
+      date = @date1.add_days(((7 - @date1.dayindex + @day_index) % 7) - 7)
+      @constructs << DateConstruct.new(date: date, comp_start: @pos, comp_end: @pos += 2, found_in: __method__)
     end
 
     def match_dayname_the_ordinal

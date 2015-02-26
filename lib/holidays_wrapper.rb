@@ -1,4 +1,5 @@
 require 'holidays'
+require 'holidays/us'
 
 module Holidays
   # sm - reads every holiday in region, including informal, and returns a date or nil

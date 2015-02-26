@@ -24,7 +24,7 @@ module Nickel
       # sm - modified to first parse message into sentences and then loop through each sentence
 
 
-      @nlp_query = NLPQuery.new(@query).standardize   # standardizes the query
+      @nlp_query = NLPQuery.new(@query, @input_date).standardize   # standardizes the query
       @construct_finder = ConstructFinder.new(@nlp_query, @input_date, @input_time)
       @construct_finder.run
       @last_pos = @construct_finder.last_pos

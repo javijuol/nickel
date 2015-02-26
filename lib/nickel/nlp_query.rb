@@ -1,13 +1,34 @@
 require 'nickel/zdate'
 require 'nickel/ztime'
 require 'nickel/nlp_query_constants'
+require 'holidays'
+
 
 module Nickel
   class NLPQuery
     include NLPQueryConstants
 
-    def initialize(query_str)
+    def initialize(query_str, input_date)
       @query_str = query_str.dup
+      # load holiday array - NOTE - REGION SHOULD NOT BE HARD CODED!
+      region = 'us'
+      @holidays = []
+      Holidays.between(input_date.to_date,input_date.add_days(365).to_date, region, :informal).each do |holiday|
+        # clean names for nlp matching
+        holiday[:name].gsub!(/,/, ' ')
+        holiday[:name].gsub!(/\./, '')
+        holiday[:name].gsub!(/;/, '')
+        holiday[:name].gsub!(/['`]/, '')
+        name = holiday[:name].downcase
+        case region
+          when 'us'
+            name.gsub!(/new years day/,'new years')
+            name.gsub!(/christmas day/,'christmas')
+        end
+
+        # add cleaned names to @holidays array
+        @holidays.push({:date => holiday[:date], :name => name})
+      end
     end
 
     attr_reader :after_formatting, :changed_in
@@ -31,6 +52,7 @@ module Nickel
       standardize_numbers
       standardize_am_pm
       replace_hyphens
+      convert_holidays_to_dates
       insert_repeats_before_words_indicating_recurrence_lame
       insert_space_at_end_of_string_lame
       @after_formatting = query_str.dup    # save current state
@@ -111,12 +133,12 @@ module Nickel
       nsub!(/the next/, 'thiscoming')           #sm -
       nsub!(/the day after next/, 'thedayafter tomorrow')     #sm -
       nsub!(/the week after next/, 'theweekafternext')     #sm -
-      nsub!(/the day after/, 'thedayafter')     #sm - when used with 'tomorrow' or a holiday
-      nsub!(/the week after/, 'theweekafter')   #sm - when used with a holdiay or a date
-      nsub!(/the month after/, 'themonthafter') #sm - when used with a holdiay or a date
-      nsub!(/the day before/, 'thedaybefore')   #sm - use with a holiday
-      nsub!(/the week before/, 'theweekbefore')   #sm - use with a holiday or date
-      nsub!(/the month before/, 'theweekbefore')   #sm - use with a holiday or date
+      nsub!(/the day after/, 'thedayafter')     #sm - when used with 'tomorrow' or a date
+      nsub!(/the week after/, 'theweekafter')   #sm - when used with a date
+      nsub!(/the month after/, 'themonthafter') #sm - when used with a date
+      nsub!(/the day before/, 'thedaybefore')   #sm - use with a date
+      nsub!(/the week before/, 'theweekbefore')   #sm - use with a date
+      nsub!(/the month before/, 'theweekbefore')   #sm - use with a date
       nsub!(/(a|any)\s*(day|days)\s+(before)/, 'anydaybefore')    #sm
       nsub!(/(a|any)\s*(day|days)\s+(after)/, 'anydayafter')    #sm
       nsub!(/o'?clock/, '')
@@ -405,6 +427,17 @@ module Nickel
     def replace_hyphens   # when between numbers or days of week
       nsub!(/(#{DAY_OF_WEEK}-+#{DAY_OF_WEEK}|\d+-+\d+)/, ' through ')
     end
+
+    def convert_holidays_to_dates
+      @holidays.each do |holiday|
+        nsub!(/#{holiday[:name]}/,holiday[:date].strftime("%m/%d/%Y"))
+        if holiday[:name] == 'easter sunday'                            # match for either 'easter sun' or 'easter'
+          nsub!(/easter sun/,holiday[:date].strftime("%m/%d/%Y"))
+          nsub!(/easter/,holiday[:date].strftime("%m/%d/%Y"))
+        end
+      end
+    end
+
 
     def insert_repeats_before_words_indicating_recurrence_lame
       comps = query_str.split
