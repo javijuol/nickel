@@ -24,7 +24,10 @@ module Nickel
     private
 
     def finalize_daily(cur_date)
-      self.start_date = cur_date
+      # require an ending date
+      if !end_date.nil?
+        self.start_date = cur_date
+      end
     end
 
     def finalize_weekly(cur_date)

@@ -11,6 +11,7 @@ module Nickel
     attr_reader :query, :input_date, :input_time, :nlp_query
     attr_reader :construct_finder, :construct_interpreter
     attr_reader :occurrences, :message, :last_pos
+    attr_reader :datetext
 
     def initialize(query, date_time = Time.now)
       str_time = date_time.strftime('%Y%m%dT%H%M%S')
@@ -18,26 +19,30 @@ module Nickel
       @query = query.dup
       @input_date = ZDate.new str_time[0..7]   # up to T, note format is already verified
       @input_time = ZTime.new str_time[9..14]  # after T
+      @datetext = ''
     end
 
     def parse
       # sm - modified to first parse message into sentences and then loop through each sentence
 
-
       @nlp_query = NLPQuery.new(@query, @input_date).standardize   # standardizes the query
       @construct_finder = ConstructFinder.new(@nlp_query, @input_date, @input_time)
       @construct_finder.run
       @last_pos = @construct_finder.last_pos
+      @datetext = @construct_finder.build_datetext
 
       extract_message
       correct_case
 
-      @construct_interpreter = ConstructInterpreter.new(@construct_finder.constructs, @input_date)  # input_date only needed for wrappers
+      @construct_interpreter = ConstructInterpreter.new(@construct_finder.constructs, @construct_finder.pair_groups, @input_date)  # input_date only needed for wrappers
       @construct_interpreter.run
 
       @occurrences = @construct_interpreter.occurrences.each { |occ| occ.finalize(@input_date) }   # finds start and end dates
+      @occurrences.delete_if {|occ| occ[:start_date].nil? and occ[:end_date].nil?}
       @occurrences.sort_by(&:start_date)
       @occurrences
+
+      # BUILD THE NL TEXT THAT SUPPORTS THESE OCCURRENCES
     end
 
     def inspect

@@ -8,8 +8,12 @@ module Nickel
   class NLPQuery
     include NLPQueryConstants
 
+    # NOTE - THERE ARE HARDCODED TIME REFERENCES THAT SHOULD BE READ FROM USER OBJECT
+    # SAME FOR REGION AND LANGUAGE!!!!
+
     def initialize(query_str, input_date)
       @query_str = query_str.dup
+      @curdate = input_date
       # load holiday array - NOTE - REGION SHOULD NOT BE HARD CODED!
       region = 'us'
       @holidays = []
@@ -50,6 +54,7 @@ module Nickel
       standardize_days
       standardize_months
       standardize_numbers
+      standardize_times
       standardize_am_pm
       replace_hyphens
       convert_holidays_to_dates
@@ -92,10 +97,11 @@ module Nickel
     end
 
     def remove_unused_punctuation
-      nsub!(/,/, ' ')
+      nsub!(/\s*,\s*/, ' , ')                  # make , into a token - useful to interpret conjunctive modifiers
       nsub!(/\./, '')
       nsub!(/;/, '')
       nsub!(/['`]/, '')
+      nsub!(/[\)\(]/, '')
     end
 
     def replace_backslashes
@@ -130,7 +136,7 @@ module Nickel
 
     def remove_unnecessary_words
       nsub!(/this coming/, 'thiscoming')        #sm - to mean the next occurence
-      nsub!(/the next/, 'thiscoming')           #sm -
+      nsub!(/the next\s+#{DAY_OF_WEEK}/, 'thiscoming \1')           #sm -
       nsub!(/the day after next/, 'thedayafter tomorrow')     #sm -
       nsub!(/the week after next/, 'theweekafternext')     #sm -
       nsub!(/the day after/, 'thedayafter')     #sm - when used with 'tomorrow' or a date
@@ -143,15 +149,7 @@ module Nickel
       nsub!(/(a|any)\s*(day|days)\s+(after)/, 'anydayafter')    #sm
       nsub!(/o'?clock/, '')
       nsub!(/\btom\b/, 'tomorrow')
-      # sm - I have set definitions for am, pm, evening and night here - perhaps better is to pass these as parameters
-      nsub!(/\s*in\s+(the\s+)?(morning|am)/, ' at 8am through 12pm')
-      nsub!(/\s*in\s+(the\s+)?(afternoon|pm)/, ' at 12pm through 6pm')
-      nsub!(/\s*in\s+(the\s+)even+ing/, ' at 5pm through 8pm')
-      nsub!(/\s*at\s+night/, ' at 8pm through 12am')
-      nsub!(/morning/, ' at 8am through 12pm')
-      nsub!(/(after\s*)?noon(ish)?/, ' at 12pm through 6pm')
-      # ------------------------------------------------
-      nsub!(/\bmi(dn|nd)ight\b/, '12:00am')
+      nsub!(/\bmi(dn|nd)ight\b/, '11:59pm')
       nsub!(/final/, 'thelast')                 # sm - need to distinguish between final and prior - "thelast" means final
       nsub!(/the last/, 'thelast')              # sm - if the token is just "last" then it will be interpretted as prior
       nsub!(/recur(s|r?ing)?/, 'repeats')
@@ -161,9 +159,10 @@ module Nickel
       nsub!(/next\s+occ?urr?[ae]nce(\s+is)?/, 'start')
       nsub!(/next\s+date(\s+it)?(\s+occ?urr?s)?(\s+is)?/, 'start')
       nsub!(/forever/, 'repeats daily')
-      nsub!(/\bany(?:\s*)day\b/, 'every day')
+#      nsub!(/\bany(?:\s*)day\b/, 'every day')
       nsub!(/^anytime$/, 'every day')  # user entered anytime by itself, not 'dayname anytime', caught next
       nsub!(/any(\s)?time|whenever/, 'all day')
+      nsub!(/\bnoon\b/, '12:00pm')
     end
 
     def standardize_days
@@ -415,6 +414,17 @@ module Nickel
       nsub!(/\bfirst\b/, '1st')
       nsub!(/\bzero\b/, '0')
       nsub!(/\bzeroth\b/, '0th')
+
+      # convert time expressions into numbers
+      nsub!(/half\s+past\s+(\d{1,2})/, '\1:30')
+      nsub!(/(?:a\s+)?quarter\s+(?:past|after)\s+(\d{1,2})/, '\1:15')
+      nsub!(/(?:a\s+)?quarter\s+(?:(?:un)?til|before|to)\s+(\d{1,2})/) {|a| (a.to_i-1).to_s + ':45'}
+      nsub!(/\ball day\b/, '8am through 6pm')
+    end
+
+    def standardize_times
+      nsub!(/(\d{1,2})\s*(\d{2})/, '\1:\2')
+#      nsub!(/\s+(\d{1,2})(\z|\s+)/, ' \1:00 ')
     end
 
     def standardize_am_pm
@@ -468,14 +478,60 @@ module Nickel
       nsub!(/\ba\s+(week|month|day)/, '1 \1')     # a month|week|day  =>  1 month|week|day
       nsub!(/^(through|until)/, 'today through')   # ^through  =>  today through
       nsub!(/every\s*(night|morning)/, 'every day')
-      nsub!(/tonight/, 'today')
-      nsub!(/this(?:\s*)morning/, 'today')
-      nsub!(/before\s+12pm/, '6am to 12pm')        # arbitrary
+      nsub!(/before\s+12pm/, '6am through 12pm')        # arbitrary
+
+      # 'tonight', 'this evening', 'this afternoon' and 'this morning' without a following 'at' imply a range
+      # otherwise, imply today at the specified time in either the am or pm
+      nsub!(/tonight\s+at\s+(\d{1,2}):(\d{2})/, 'today at \1:\2pm')
+      nsub!(/this\s*evening\s+at\s+(\d{1,2}):(\d{2})/, 'today at \1:\2pm')
+      nsub!(/this\s*afternoon\s+at\s+(\d{1,2}):(\d{2})/, 'today at \1:\2pm')
+      nsub!(/this\s*morning\s+at\s+(\d{1,2}):(\d{2})/, 'today at \1:\2am')
+
+      # time followed by tonight, this evening, etc.
+      nsub!(/at\s+(\d{1,2}):(\d{2})\s+tonight/, 'today at \1:\2pm')
+      nsub!(/at\s+(\d{1,2}):(\d{2})this\s*evening/, 'today at \1:\2pm')
+      nsub!(/at\s+(\d{1,2}):(\d{2})this\s*afternoon/, 'today at \1:\2pm')
+      nsub!(/at\s+(\d{1,2}):(\d{2})this\s*morning/, 'today at \1:\2am')
+
+      # standalone today references
+      nsub!(/tonight/, 'today at 8pm through 12am')
+      nsub!(/this\s*afternoon/, 'today at 12pm through 6pm')
+      nsub!(/this\s*evening/, 'today at 6pm through 12am')
+      nsub!(/this\s*morning/, 'today at 8am through 12pm')
+
+      # [day] + morning, afternoon, evening, and night at ... imply either am or pm
+      nsub!(/night\s+at\s+(\d{1,2}):(\d{2})/, 'at \1:\2pm')
+      nsub!(/evening\s+at\s+(\d{1,2}):(\d{2})/, 'at \1:\2pm')
+      nsub!(/afternoon\s+at\s+(\d{1,2}):(\d{2})/, 'at \1:\2pm')
+      nsub!(/morning\s+at\s+(\d{1,2}):(\d{2})/, 'at \1:\2am')
+
+      # [day] at time in the morning, afternoon, etc.
+      nsub!(/(\d{1,2}):(\d{2})\s*in\s+(the\s+)?(morning|am)/, '\1:\2am')
+      nsub!(/(\d{1,2}):(\d{2})\s*in\s+(the\s+)?(afternoon|pm)/, '\1:\2pm')
+      nsub!(/(\d{1,2}):(\d{2})\s*in\s+(the\s+)evening/, '\1:\2pm')
+      nsub!(/(\d{1,2}):(\d{2})\s*at\s+night/, '\1:\2pm')
+
+      # standalone time range references
+      nsub!(/\s*in\s+(the\s+)?(morning|am)/, ' at 8am through 12pm')
+      nsub!(/\s*in\s+(the\s+)?(afternoon|pm)/, ' at 12pm through 6pm')
+      nsub!(/\s*in\s+(the\s+)even+ing/, ' at 5pm through 8pm')
+      nsub!(/\s*at\s+night/, ' at 8pm through 12am')
+
+      nsub!(/(\b1\s+)?morning/, 'at 8am through 12pm')
+      nsub!(/(\b1\s+)?(after\s*)?noon(ish)?/, 'at 12pm through 6pm')
+      nsub!(/(\b1\s+)?evening/, 'at 6pm through 12am')
+      nsub!(/(\b1\s+)?night/, 'at 8pm through 12am')
+
 
       # Handle 'THE' Cases
       # Attempt to pick out where a user entered 'the' when they really mean 'every'.
       # For example,
       # The first of every month and the 22nd of THE month  =>  repeats monthly first xxxxxx repeats monthly 22nd xxxxxxx
+
+      # the nth week of the month
+
+
+
       nsub!(/(?:the\s+)?#{DATE_DD_WITH_SUFFIX}\s+(?:of\s+)?(?:every|each)\s+month((?:.*)of\s+the\s+month(?:.*))/) do |m1, m2|
         ret_str = ' repeats monthly ' + m1
         ret_str << m2.gsub(/(?:and\s+)?(?:the\s+)?#{DATE_DD_WITH_SUFFIX}\s+of\s+the\s+month/, ' repeats monthly \1 ')
@@ -489,12 +545,12 @@ module Nickel
 
       # The x through the y of oct z  =>  10/x/z through 10/y/z
       nsub!(/(?:the\s+)?#{DATE_DD}\s+(?:through|to|until)\s+(?:the\s+)?#{DATE_DD}\s(?:of\s+)#{MONTH_OF_YEAR}\s+(?:of\s+)?#{YEAR}/) do |m1, m2, m3, m4|
-        (ZDate.months_of_year.index(m3) + 1).to_s + '/' + m1 + '/' + m4 + ' through ' +  (ZDate.months_of_year.index(m3) + 1).to_s + '/' + m2 + '/' + m4
+        (ZDate.months_of_year.index(m3) + 1).to_s + '/' + m1.delete!("a-z") + '/' + m4 + ' through ' +  (ZDate.months_of_year.index(m3) + 1).to_s + '/' + m2.delete!("a-z") + '/' + m4
       end
 
       # The x through the y of oct  =>  10/x through 10/y
       nsub!(/(?:the\s+)?#{DATE_DD}\s+(?:through|to|until)\s+(?:the\s+)#{DATE_DD}\s(?:of\s+)?#{MONTH_OF_YEAR}/) do |m1, m2, m3|
-        (ZDate.months_of_year.index(m3) + 1).to_s + '/' + m1 + ' through ' + (ZDate.months_of_year.index(m3) + 1).to_s + '/' + m2
+        (ZDate.months_of_year.index(m3) + 1).to_s + '/' + m1.delete!("a-z") + ' through ' + (ZDate.months_of_year.index(m3) + 1).to_s + '/' + m2.delete!("a-z")
       end
 
       # January 1 - February 15
@@ -632,7 +688,7 @@ module Nickel
       nsub!(/(\d+)\s+weeks\s+(after|from)\s*(this|next|this coming)*\s*?#{DAY_OF_WEEK}/, '\1 \4 from now')
 
       # "mon and tue" --> mon tue
-      nsub!(/(#{DAY_OF_WEEK}\s+(and|or)\s+#{DAY_OF_WEEK})(?:\s+(and|or))?/, '\2 \4')
+#      nsub!(/(#{DAY_OF_WEEK}\s+(and|or)\s+#{DAY_OF_WEEK})(?:\s+(and|or))?/, '\2 \4')
 
       # "mon wed every week" --> every mon wed
       nsub!(/((#{DAY_OF_WEEK}(?:\s*)){1,7})(?:of\s+)?(?:every|each)(\s+other)?\s+week/, 'every \4 \1')
@@ -647,7 +703,7 @@ module Nickel
       nsub!(/every\s+#{DAY_OF_WEEK}\s+(?:and\s+)?every\s+#{DAY_OF_WEEK}(?:\s+(?:and\s+)?every\s+#{DAY_OF_WEEK})?(?:\s+(?:and\s+)?every\s+#{DAY_OF_WEEK})?(?:\s+(?:and\s+)?every\s+#{DAY_OF_WEEK})?/, 'every \1 \2 \3 \4 \5')
 
       # monday, wednesday, and/or friday next week at 8
-      nsub!(/((?:#{DAY_OF_WEEK_NB}\s+(?:(and|or)\s+)?){1,7})(?:of\s+)?(this|next)\s+week/, '\3 \2')
+#     nsub!(/((?:#{DAY_OF_WEEK_NB}\s+(?:(and|or)\s+)?){1,7})(?:of\s+)?(this|next)\s+week/, '\3 \2')
 
       # "every day this|next week"  --> returns monday through friday of the closest week, kinda stupid
       # doesn't do that anymore, no date calculations allowed here, instead just formats it nicely for construct finders --> every day this|next week
@@ -938,8 +994,8 @@ module Nickel
       # REDONE, no date calculations
       # the 23rd of this|the month --> 23rd this month
       # this month on the 23rd --> 23rd this month
-      nsub!(/(?:the\s+)?#{DATE_DD}\s+(?:of\s+)?(?:this|the)\s+month/, '\1 this month')
-      nsub!(/this\s+month\s+(?:(?:on|the)\s+)?(?:(?:on|the)\s+)?#{DATE_DD}/, '\1 this month')
+      nsub!(/(?:the\s+)?#{DATE_DD}\s+(?:of\s+)?(?:this|the)\s+month/, '\1')
+      nsub!(/this\s+month\s+(?:(?:on|the)\s+)?(?:(?:on|the)\s+)?#{DATE_DD}/, '\1')
 
       # Ordinal next month:
       # this will slip by now
@@ -952,7 +1008,7 @@ module Nickel
       nsub!(/(?:next|the\s+following)\s+month\s+(?:(?:on|the)\s+)?(?:(?:on|the)\s+)?#{DATE_DD}/, '\1 next month')
 
       # "for the next 3 days|weeks|months" --> for 3 days|weeks|months
-      nsub!(/for\s+(?:the\s+)?(?:next|following)\s+(\d+)\s+(days|weeks|months)/, 'for \1 \2')
+      nsub!(/(?:through|for)\s+(?:the\s+)?(?:next|following)\s+(\d+)\s+(days|weeks|months)/, 'for \1 \2')
 
       # This monthname -> monthname
       nsub!(/this\s+#{MONTH_OF_YEAR}/, '\1')
@@ -968,11 +1024,28 @@ module Nickel
       # the week ending 1/2 -> week through 1/2
       nsub!(/(the\s+)?week\s+(?:ending)\s+/, 'week through ')
 
+      # convert 'start of', 'middle of' and 'end of' into fixed dates - wrappers suck!
+      # months
+      nsub!(/(?:\bthe\b\s+)?(?:begin(?:s|ning)?|start(?:s|ing)?)(?:\s+(?:in|of))?\s*#{MONTH_OF_YEAR}/) do |m1|
+        (ZDate.months_of_year.index(m1) + 1).to_s + '/' + '1' end
+      nsub!(/(?:\bthe\b\s+)?\bmid(?:dle)?(?:\s+of)?\s*#{MONTH_OF_YEAR}/) do |m1|
+        (ZDate.months_of_year.index(m1) + 1).to_s + '/' + '15' end
+      nsub!(/(?:\bthe\b\s+)?\bend(?:s|ing)?(?:\s+of)?\s*#{MONTH_OF_YEAR}/) do |m1|
+        (ZDate.months_of_year.index(m1) + 1).to_s + '/' + @curdate.jump_to_month(ZDate.months_of_year.index(m1) + 2).sub_days(1).day_str end
+
+      # this week
+      nsub!(/(?:\bthe\b\s+)?(?:begin(?:s|ning)?|start(?:s|ing)?)(?:\s+(?:in|of))?\s+(\bthis\b|\bnext\b)\s+\bweek\b/, '\1' + ' mon')
+      nsub!(/(?:\bthe\b\s+)?\bmid(?:dle)?(?:\s+of)?\s+(\bthis\b|\bnext\b)\s+\bweek\b/, '\1' + ' wed')
+      nsub!(/(?:\bthe\b\s+)?\bend(?:s|ing)?(?:\s+of)?\s+(\bthis\b|\bnext\b)\s+\bweek\b/, '\1' + ' fri')
+
+
       # clean up wrapper terminology
       # This should always be at end of pre-process
-      nsub!(/(begin(s|ning)?|start(s|ing)?)(\s+(at|on))?/, 'start')
-      nsub!(/(\bend(s|ing)?|through|until)(\s+(at|on))?/, 'through')
-      nsub!(/start\s+(?:(?:this|in)\s+)?#{MONTH_OF_YEAR}/, 'start \1')
+
+
+#      nsub!(/(begin(s|ning)?|start(s|ing)?)(\s+(at|on))?/, 'start')
+#      nsub!(/(\bend(s|ing)?|through|until)(\s+(at|on))?/, 'through')
+#      nsub!(/start\s+(?:(?:this|in)\s+)?#{MONTH_OF_YEAR}/, 'start \1')
 
       # 'the' cases; what this is all about is if someone enters "first sunday of the month" they mean one date.  But if someone enters "first sunday of the month until december 2nd" they mean recurring
       # Do these actually do ANYTHING anymore?

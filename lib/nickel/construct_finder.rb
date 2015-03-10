@@ -5,7 +5,7 @@ require 'nickel/ztime'
 
 module Nickel
   class ConstructFinder
-    attr_reader :constructs, :components, :last_pos
+    attr_reader :constructs, :components, :last_pos, :pair_groups
 
     def initialize(query, curdate, curtime)
       @curdate = curdate
@@ -13,16 +13,27 @@ module Nickel
       @components = query.split
       @pos = 0    # iterator
       @constructs = []
+      @pair_groups = []               # an array of all found pairs
     end
+
+    # NOTE - The program uses the concept of a wrapper for date or time ranges without a defined starting date
+    # type 0 flags the start of a date range and type 1 flags the end of a date range
+    # type 2 flags a range in days and type 3 flags a range in weeks and type 4 in months
+    # when there are anchoring dates, they are placed in the occurrence array AFTER the wrappers
+
+    # dates and times need to be paired based on prepositional and conjunction modifiers
+    # after creating the constructs, order them into strict date+time sequence for the interpreter
 
     def run
       while @pos < @components.size
-        big_if_on_current_word
+        find_constructs
         @pos += 1
         if constructs.length > 0     #sm - at least one construct found - save the last postion of the last construct
            @last_pos = constructs[constructs.length-1].comp_end
         end
       end
+      convert_wrapper1_into_date_ranges
+      marry_date_time_constructs
     end
 
     def reset_instance_vars
@@ -37,7 +48,7 @@ module Nickel
       @date2 = nil
     end
 
-    def big_if_on_current_word
+    def find_constructs
       reset_instance_vars
 
       if match_every
@@ -202,6 +213,9 @@ module Nickel
           found_x_weeks_from_yesterday                    # 5 weeks from yesterday
         end
 
+      elsif match_nth_week_of_month
+            found_nth_week_of_month
+
       elsif match_x_months_from
         if match_x_months_from_dayname
           found_x_months_from_dayname                   # 2 months from wed
@@ -305,6 +319,8 @@ module Nickel
             found_now_through_following_dayname         # REDUNDANT, PREPROCESS THIS OUT
           elsif match_now_through_date
             found_now_through_date                      # today through 10/1
+          elsif match_now_through_monthname
+            found_now_through_monthname                 # today through April
           elsif match_now_through_tomorrow
             found_now_through_tomorrow                  # today through tomorrow
           elsif match_now_through_next_dayname
@@ -331,16 +347,20 @@ module Nickel
           found_dayname                                 # monday (also monday tuesday wed...)
         end
 
-      elsif match_through_monthname
-        found_through_monthname                         # through december (implies through 11/30)
       elsif match_monthname
         found_monthname                                 # december (implies 12/1 to 12/31)
 
-      # 5th constructor
+      elsif match_through_monthname
+          found_through_monthname                         # through december (implies through 11/30)
+
+          # 5th constructor
+      # NOTE - TRY TO MAKE WRAPPERS WORK!!!!!
+
       elsif match_start
         found_start
+
       elsif match_through
-        found_through
+          found_through
 
       elsif match_time                                  # match time second to last
         if match_time_through_time
@@ -356,24 +376,315 @@ module Nickel
           found_date                                    # 5th
         end
       end
-    end # end def big_if_on_current_word
+    end # end def find_constructs
+
+
+    # this will look for any type 1 wrappers and marry together any adjacent dates into a datespan
+    # if there is no prior date, today is assumed
+    def convert_wrapper1_into_date_ranges
+      wrappers = (@constructs.map.with_index {|c, i| i if c.class.to_s.match('Wrap') && c.wrapper_type == 1}).reject {|c| c.nil?}
+        wrappers.each do  |i|
+          prior = find_prior_date(i) if i > 0
+          if prior.nil?
+            sd = @curdate
+          else
+            sd = @constructs[prior].date
+          end
+        end
+    end
+
+
+
+
+    def find_prior_date(i)
+      return @constructs[0..i-1].rindex {|c| c.class.to_s.match('Date')}
+    end
+
+    def find_following_date(i)
+      return @constructs[i+1].rindex {|c| c.class.to_s.match('Date')}
+    end
+
+
+    # read through @constructs and look at prepositional and conjunctive modifiers to determine
+    # how to group dates and times.
+    # recurring constructs are like dates
+
+    # type 1 wrappers will have been convereted to datespans - type 2-4 should always be bound to a prior date
+    # or a recurrence
+    # since they represent a period of time after. e.g. from Easter through the next 3 weeks
+    # pair the wrapper to the nearest prior date/recurrence BEFORE pairing with times -
+    # ignore the wrappers when pairing dates/recur with times
+
+    def marry_date_time_constructs
+
+      @connector = ''
+      @pairing = []
+      @orphans = []                   # an array of constructs that are not yet paired
+      @wrappers = []                  # date/wrapper or recurrence/wrapper pairs
+
+      # determine whether pairing is necessary
+      time_count = @constructs.count {|c| c.class.to_s.match('Time')}
+      date_count = @constructs.count {|c| c.class.to_s.match(/(Date|Recu)/)}
+
+      # if no available pairs, just copy over all constructs into a single array
+      if date_count == 0 || time_count == 0
+        @constructs.each_index {|i| @pairing << i}
+        @pair_groups << @pairing
+      else
+        # first pair wrappers with prior dates/recurrences - if there are multiple prior recurrences,
+        # copy the wrapper for each recurrence and pair - this permits separate pairing for times, e.g.
+        # 'every monday at 10 or wednesday at 12 for the next 3 weeks'
+        wrapper_pairs = []
+        @constructs.each_index do |i|
+          if @constructs[i].class.to_s.match('Wrap')
+            wrapper_pairs = pair_to_wrapper(i)
+                if wrapper_pairs.length > 0                 # at least one match found
+                  wrapper_pairs << i
+                  @wrappers << wrapper_pairs.sort
+                end
+          end
+        end
+
+        # identify all date/time pairs
+        # treat each wrapper pair as a single date
+
+        i = 0
+        while i < @constructs.length
+
+          end_of_wrapper = this_hasa_wrapper(i)      # returns the last index in the wrapper pairing
+          if end_of_wrapper
+            this_type = 'Date'
+            this_index = end_of_wrapper
+          else
+            this_type = @constructs[i].class.to_s.match(/(Time|Date|Recu)/).to_s
+            this_type == 'Recu' ? (this_type = 'Date') : this_type
+            this_index = i
+          end
+
+          found_pair = find_pair(this_type, this_index)     # check if next construct pairs to this one
+          if found_pair
+            while i <= found_pair
+              @pairing << i
+              i += 1
+            end
+            @pair_groups << @pairing
+            @pairing = []
+            i = found_pair
+          else
+            @orphans << i
+          end
+          i += 1
+        end
+      end
+
+        # add orphans to pairs or place in their own pairing
+        # orphans always connect to an adjacent pair of the same type, e.g. [Mon or [Tuesday at 4]],
+        # but never to a different type, e.g. Mon or [4pm on Tuesday]
+        # if both adjacents are of the same type, pair with the prior adjacent,
+        # e.g. [[Mon at 2] or 4] or [6 on Tuesday]
+        # if no matching type adjacent, place in it's own pairing and insert into pair_group
+
+        # recurring and dateranges should be paired
+
+        #step through each pair group looking for orphans to pair to
+        @pair_groups.each do |pairing|
+          prior_orphan = find_prior(pairing.first)          # check for any prior orphans
+          if prior_orphan                                   # an pairable orphan is found - this is it's index
+            pairing.insert(0,@orphans[prior_orphan])        # insert the construct index at the start of the pairing
+            @orphans.delete_at(prior_orphan)
+            redo                                            # search again for another prior orphan
+          end
+          following_orphan = find_following(pairing.last)
+          if following_orphan
+            pairing << @orphans[following_orphan]
+            @orphans.delete_at(following_orphan)
+            redo
+          end
+        end
+
+        # any remaining orphans should go into their own pairing - insert into pair_groups in the appropriate location
+        @orphans.each do |orphan|
+          @pairing << orphan
+          @pair_groups.insert(insert_spot(orphan), @pairing)
+        end
+        @orphans = []
+
+        # add today for any time constructs in their own pairing
+        @pair_groups.each do |pairing|
+          if pairing.count {|p| @constructs[p].class.to_s.match(/(Date|Recu)/)} == 0
+            @constructs << DateConstruct.new(date: @curdate, comp_start: 0, comp_end: 0, found_in: __method__)
+            pairing << @constructs.length - 1
+          end
+        end
+    end
+
+    def find_pair(type1, index1)
+
+      if index1+2 > @constructs.length
+        return nil
+      end
+
+      # first check that there are no conjunctions in the components between the constructs
+      if found_conjunction(index1, index1+1)
+        return nil
+      end
+
+      # check to see if the next construct is part of a wrapper pairing
+      # if so, treat as a date and decide if the group can be paired to the prior construct
+      found_wrapper = this_hasa_wrapper(index1+1)
+      if found_wrapper
+        return found_wrapper
+      end
+
+      # check to see if the next construct pairs
+      type2 = @constructs[index1+1].class.to_s.match(/(Time|Date|Recu)/).to_s
+      type2 == 'Recu' ? (type2 = 'Date') : type2
+
+      if !(type1 == type2)                                  # a pair is found
+        return index1 + 1
+      end
+
+      return nil
+    end
+
+    def found_conjunction(c1, c2)
+      # read all the components between the constructs to see if a conjunction is found
+      comp = @constructs[c1].comp_end + 1
+      comp_end = @constructs[c2].comp_start
+
+      until comp >= comp_end
+        if @components[comp].match(/(\bor\b|\band\b|\,)/)
+          return true
+        else
+          comp += 1
+        end
+      end
+      return false
+    end
+
+    def find_prior(pair)       # search for prior orphan that can be paired
+      if pair > 0
+        type1 = @constructs[pair].class.to_s.match(/(Time|Date|Recu|Wrap)/).to_s
+        type1 == 'Recu' || type1 == 'Wrap' ? (type1 = 'Date') : type1
+        type2 = @constructs[pair-1].class.to_s.match(/(Time|Date|Recu|Wrap)/).to_s
+        type2 == 'Recu' || type2 == 'Wrap' ? (type2 = 'Date') : type2
+        if type1 == type2                             # okay to pair if orphaned
+          return @orphans.index(pair-1)               # nil if not found
+        end
+      end
+      return nil
+    end
+
+  def find_following(pair)       # search for following orphan that can be paired
+    if pair+1 < @constructs.length
+      type1 = @constructs[pair].class.to_s.match(/(Time|Date|Recu|Wrap)/).to_s
+      type1 == 'Recu' || type1 == 'Wrap' ? (type1 = 'Date') : type1
+      type2 = @constructs[pair+1].class.to_s.match(/(Time|Date|Recu|Wrap)/).to_s
+      type2 == 'Recu' || type2 == 'Wrap' ? (type2 = 'Date') : type2
+      if type1 == type2                             # okay to pair if orphaned
+        return @orphans.index(pair+1)               # nil if not found
+      end
+    end
+    return nil
+  end
+
+  def insert_spot(c_index)
+    @pair_groups.each_index do |group_index|
+      pairing = @pair_groups[group_index]
+      if c_index < pairing.first
+        return group_index
+      end
+    end
+    return -1           # insert at end of array
+  end
+
+    # return an array of all constructs to bind to this wrapper
+    def pair_to_wrapper(wrapper)       # search for prior recurrs or date for wrapper
+      pair_array = []
+      pair = @constructs[0..wrapper].rindex {|c| c.class.to_s.match(/(Date|Recurrence)Construct/)}
+      while pair
+        pair_array << pair
+        # if a date, join once
+        if @constructs[pair].class.to_s.match('Date')         # date
+          return pair_array
+        else                                                  #recurrence
+          if pair>0 && @constructs[pair-1].class.to_s.match(/RecurrenceConstruct/)
+            pair -= 1
+          else
+            pair = nil
+          end
+        end
+      end
+      # if there is no recurrence and no date to pair to the wrapper, then if there is a time,
+      # create a date occurrence for today and attach to the wrapper, e.g. at 3PM for the next 3 weeks
+      if pair_array.length == 0
+        pair = @constructs[0..wrapper].rindex {|c| c.class.to_s.match(/'Time'/)}
+        if pair
+          @constructs.insert(wrapper,DateConstruct.new(date: @curdate, comp_start: 0, comp_end: 0, found_in: __method__))
+          pair_array << wrapper - 1
+        end
+      end
+      return pair_array
+    end
+
+    def this_hasa_wrapper(index)
+      i = 0
+      until i+1 > @wrappers.length || @wrappers[i].first  == index
+          i += 1
+      end
+      if i < @wrappers.length
+        return @wrappers[i].last
+      else
+        return nil
+      end
+    end
+
+    # this creates a NL description of the date times in the constructs
+    def build_datetext
+      datetext = ''
+      last_index = @components.length
+      @constructs.each do |construct|
+        index = construct.comp_start
+        while last_index < index
+          if @components[last_index].match(/(\bon\b|\bat\b|\bor\b|\band\b|\,)/)
+            datetext << @components[last_index].match(/(\bon\b|\bat\b|\bor\b|\band\b|\,)/).to_s + ' '
+          end
+          last_index += 1
+        end
+        last_index = construct.comp_end + 1
+        while index < last_index
+          datetext << @components[index] + ' '
+          index += 1
+        end
+      end
+      return datetext
+    end
+
 
     def match_every
       @components[@pos] == 'every'
     end
 
+
     def match_every_dayname
       @day_index = ZDate.days_of_week.index(@components[@pos + 1])     # if "every [day]"
     end
 
+    # NEED TO BE ABLE TO CATCH 'EVERY WEDNESDAY AT 12 OR THURSDAY AT 5' - THE 'EVERY' IS IMPLIED IN THE SECOND CASE
+    # Assume that any following daynames in the sentence will be implied to be recurring as well
     def found_every_dayname
       day_array = [@day_index]
-      j = 2
-      while @components[@pos + j] && ZDate.days_of_week.index(@components[@pos + j]) # if "every mon tue wed"
-        day_array << ZDate.days_of_week.index(@components[@pos + j])
+      @constructs << RecurrenceConstruct.new(repeats: :weekly, repeats_on: day_array, comp_start: @pos, comp_end: @pos += 1, found_in: __method__)
+
+      # now see if there is a following implied recurrence and add an "every" component before each that does not
+      # already have an "every"
+      j = 1
+      while @components[@pos + j]
+        if ZDate.days_of_week.index(@components[@pos + j]) && !(@components[@pos + j -1] == 'every')
+          @components.insert(@pos + j, 'every')
+        end
         j += 1
       end
-      @constructs << RecurrenceConstruct.new(repeats: :weekly, repeats_on: day_array, comp_start: @pos, comp_end: @pos += (j - 1), found_in: __method__)
     end
 
     def match_every_day
@@ -718,7 +1029,9 @@ module Nickel
     end
 
     def found_this_week
-      @constructs << DateSpanConstruct.new(start_date: @curdate, end_date: @curdate.add_days(7), comp_start: @pos, comp_end: @pos += 1, found_in: __method__)
+      sd = @curdate
+      ed = @curdate.this(6)
+      @constructs << DateSpanConstruct.new(start_date: sd, end_date: ed, comp_start: @pos, comp_end: @pos += 1, found_in: __method__)
     end
 
     def match_this_month
@@ -875,8 +1188,6 @@ module Nickel
       @constructs << DateSpanConstruct.new(start_date: sd, end_date: ed, comp_start: @pos, comp_end: @pos += 1, found_in: __method__)
     end
 
-
-    #sm ---------------------------
     def match_next_month
       # note it is important that all other uses of "next month" come after indicating words such as "every day next month"; otherwise they will be converted here
       @components[@pos + 1] =~ /months?/
@@ -890,6 +1201,16 @@ module Nickel
 
     def match_week
       @components[@pos] == 'week'
+    end
+
+    def match_nth_week_of_month
+      @components[@pos] =~ /(1st|2nd|3rd|4th|5th)/ && @components[@pos + 1] == 'week' && @components[@pos + 2] == 'of' && (@month_index = ZDate.months_of_year.index(@components[@pos + 3]))
+    end
+
+    def found_nth_week_of_month
+      @sd = @curdate.jump_to_month(@month_index + 1).ordinal_dayindex(@components[@pos].to_i, 0)
+      @ed = @sd.add_days(6)
+      @constructs << DateSpanConstruct.new(start_date: @sd, end_date: @ed, comp_start: @pos, comp_end: @pos += 3, found_in: __method__)
     end
 
     def match_week_of_date
@@ -1254,6 +1575,7 @@ module Nickel
       @components[@pos] == 'all' && @components[@pos + 1] == 'day'      # all day
     end
 
+    # NOTE - THIS IS RIDICULOUS!!!!
     def found_all_day
       @constructs << NullConstruct.new(comp_start: @pos, comp_end: @pos += 1, found_in: __method__)
     end
@@ -1318,6 +1640,14 @@ module Nickel
 
     def found_now_through_date
       @constructs << DateSpanConstruct.new(start_date: @curdate, end_date: @date1, comp_start: @pos, comp_end: @pos += 2, found_in: __method__)
+    end
+
+    def match_now_through_monthname
+      @month_index = ZDate.months_of_year.index(@components[@pos + 2])
+    end
+
+    def found_now_through_monthname
+      @constructs << DateSpanConstruct.new(start_date: @curdate, end_date: @curdate.jump_to_month(@month_index + 2).sub_days(1), comp_start: @pos, comp_end: @pos += 2, found_in: __method__)
     end
 
     def match_now_through_tomorrow
@@ -1429,9 +1759,9 @@ module Nickel
     end
 
     def found_through_monthname
-      # this is really a wrapper, we don't know when the start date is, so make sure @constructs gets wrapper first, as date constructs always have to appear after wrapper
+      # through signifies till the end of the month
       @constructs << WrapperConstruct.new(wrapper_type: 1, comp_start: @pos, comp_end: @pos + 1, found_in: __method__)
-      @constructs << DateConstruct.new(date: @curdate.jump_to_month(@month_index + 1).sub_days(1), comp_start: @pos, comp_end: @pos += 1, found_in: __method__)
+      @constructs << DateConstruct.new(date: @curdate.jump_to_month(@month_index + 2).sub_days(1), comp_start: @pos, comp_end: @pos += 1, found_in: __method__)
     end
 
     def match_monthname

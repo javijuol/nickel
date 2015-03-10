@@ -5,26 +5,35 @@ module Nickel
   class ConstructInterpreter
     attr_reader :occurrences, :constructs, :curdate
 
-    def initialize(constructs, curdate)
-      @constructs = constructs
+    def initialize(constructs, pair_groups, curdate)
+      @constructs_all = constructs
+      @pair_groups = pair_groups
       @curdate = curdate
       @occurrences = []             # output
-      initialize_index_to_type_map
-      initialize_user_input_style
-      initialize_arrays_of_construct_indices
-      initialize_sorted_time_map
-      finalize_constructs
     end
 
-    def run                 # sm- does not trap for a mix of date_span and one_date, nor multiple spans
-      if found_dates
-        occurrences_from_dates
-      elsif found_one_date_span
-        occurrences_from_one_date_span
-      elsif found_recurrences_and_optional_date_span
-        occurrences_from_recurrences_and_optional_date_span
-      elsif found_wrappers_only
-        occurrences_from_wrappers_only
+    def run
+
+      ## Build occurrences from each pair_group
+      ## NOTE - RIGHT NOW IGNORE ANDS
+      ## Use the existing interpreter engine, but pass each pair rather than all constructs
+
+      @pair_groups.each do |pairing|
+        @constructs = pairing.map{ |i| @constructs_all[i]}
+        initialize_index_to_type_map
+        initialize_user_input_style
+        initialize_arrays_of_construct_indices
+        initialize_sorted_time_map
+        finalize_constructs
+        if found_dates
+          occurrences_from_dates
+        elsif found_one_date_span
+          occurrences_from_one_date_span
+        elsif found_recurrences_and_optional_date_span
+          occurrences_from_recurrences_and_optional_date_span
+        elsif found_wrappers_only
+          occurrences_from_wrappers_only
+        end
       end
     end
 
@@ -63,6 +72,7 @@ module Nickel
     end
 
     def initialize_arrays_of_construct_indices
+      # dci = single date, tci = single time, dsci = date range, tsci = time range, rci = recurrence, wci = undefined range
       @dci, @tci, @dsci, @tsci, @rci, @wci = [], [], [], [], [], []
       @index_to_type_map.each do |i, type|
         case type
@@ -215,10 +225,25 @@ module Nickel
       finalize_timespan_constructs(true)
     end
 
+
+    # wrappers are not working as written - use them now to tie dates or recurring to a start and end date
+    # thereby changing dateconstructs to datespan constructs
+
+    def tie_wrappers_to_dates
+      wrapper = @index_to_type_map.key(:wrapper)
+      if !wrapper.nil?
+
+
+      end
+    end
+
+
+
     # The @sorted_time_map hash has keys of date/datespans/recurrence indices (in this case date),
     # and an array of time and time span indices as values.  This checks to make sure that array of
     # times is not empty, and if it is there are no times associated with this date construct.
     # Huh? That does not explain this method... at all.
+
     def create_occurrence_for_each_time_in_time_map(occ_base, dindex, &block)
       if !@sorted_time_map[dindex].empty?
         @sorted_time_map[dindex].each do |tindex|   # tindex may be time index or time span index
@@ -238,17 +263,18 @@ module Nickel
     end
 
     def found_dates
-      # One or more date constructs, NO date spans, NO recurrence,
+      # One or more date constructs, or date spans, NO recurrence,
       # possible wrappers, possible time constructs, possible time spans
       @dci.size > 0 && @dsci.size == 0 && @rci.size == 0
     end
 
     def occurrences_from_dates
-      @dci.each do |dindex|
-        occ_base = Occurrence.new(type: :single, start_date: @constructs[dindex].date)
-        create_occurrence_for_each_time_in_time_map(occ_base, dindex) { |occ| @occurrences << occ }
-      end
+        @dci.each do |dindex|
+         occ_base = Occurrence.new(type: :single, start_date: @constructs[dindex].date)
+         create_occurrence_for_each_time_in_time_map(occ_base, dindex) { |occ| @occurrences << occ }
+        end
     end
+
 
     def found_one_date_span
       @dci.size == 0 && @dsci.size == 1 && @rci.size == 0

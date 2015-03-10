@@ -100,6 +100,12 @@ module Nickel
     def ordinal_dayindex(num, day_index)
       # create a date object at the first occurrence of day_index
       first_occ_date = ZDate.new(ZDate.format_date(year_str, month_str)).this(day_index)
+      # confirm that the day actually falls in the month
+      this_month = ZDate.new(ZDate.format_date(year_str, month_str)).month
+      if first_occ_date.month != this_month
+        num += 1
+      end
+
       # if num is 1 through 4, we can just add (num-1) weeks
       if num <= 4
         d = first_occ_date.add_weeks(num - 1)
