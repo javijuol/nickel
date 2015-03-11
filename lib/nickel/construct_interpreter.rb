@@ -265,7 +265,7 @@ module Nickel
     def found_dates
       # One or more date constructs, or date spans, NO recurrence,
       # possible wrappers, possible time constructs, possible time spans
-      @dci.size > 0 && @dsci.size == 0 && @rci.size == 0
+      (@dci.size > 0 || @dsci.size > 0) && @rci.size == 0
     end
 
     def occurrences_from_dates
@@ -273,19 +273,14 @@ module Nickel
          occ_base = Occurrence.new(type: :single, start_date: @constructs[dindex].date)
          create_occurrence_for_each_time_in_time_map(occ_base, dindex) { |occ| @occurrences << occ }
         end
-    end
 
-
-    def found_one_date_span
-      @dci.size == 0 && @dsci.size == 1 && @rci.size == 0
-    end
-
-    def occurrences_from_one_date_span
-      occ_base = Occurrence.new(type: :daily,
-                                start_date: @constructs[@dsci[0]].start_date,
-                                end_date: @constructs[@dsci[0]].end_date,
+        @dsci.each do |dindex|
+          occ_base = Occurrence.new(type: :daily,
+                                start_date: @constructs[@dsci[dindex]].start_date,
+                                end_date: @constructs[@dsci[dindex]].end_date,
                                 interval: 1)
-      create_occurrence_for_each_time_in_time_map(occ_base, @dsci[0]) { |occ| @occurrences << occ }
+          create_occurrence_for_each_time_in_time_map(occ_base, @dsci[dindex]) { |occ| @occurrences << occ }
+        end
     end
 
     def found_recurrences_and_optional_date_span

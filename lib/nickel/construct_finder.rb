@@ -14,6 +14,7 @@ module Nickel
       @pos = 0    # iterator
       @constructs = []
       @pair_groups = []               # an array of all found pairs
+      @week_index = 0                 # use to establish the week for any daynames that follow, e.g. next week on Wednesay - the 'next week' sets the index to 1 and then Wed is calced accordingly
     end
 
     # NOTE - The program uses the concept of a wrapper for date or time ranges without a defined starting date
@@ -301,15 +302,15 @@ module Nickel
         found_all_day                                   # all day
 
       elsif match_tomorrow
-        if match_tomorrow_through
-          if match_tomorrow_through_dayname
-            found_tomorrow_through_dayname              # tomorrow through friday
-          elsif match_tomorrow_through_date
-            found_tomorrow_through_date                 # tomorrow through august 20th
-          end
-        else
+#        if match_tomorrow_through
+#          if match_tomorrow_through_dayname
+#            found_tomorrow_through_dayname              # tomorrow through friday
+#          elsif match_tomorrow_through_date
+#            found_tomorrow_through_date                 # tomorrow through august 20th
+#          end
+#        else
           found_tomorrow                                # tomorrow
-        end
+#        end
 
       elsif match_now
         if match_now_through
@@ -382,18 +383,41 @@ module Nickel
     # this will look for any type 1 wrappers and marry together any adjacent dates into a datespan
     # if there is no prior date, today is assumed
     def convert_wrapper1_into_date_ranges
+      to_delete = []
       wrappers = (@constructs.map.with_index {|c, i| i if c.class.to_s.match('Wrap') && c.wrapper_type == 1}).reject {|c| c.nil?}
         wrappers.each do  |i|
           prior = find_prior_date(i) if i > 0
           if prior.nil?
             sd = @curdate
+            comp_start = @constructs[i].comp_start
           else
             sd = @constructs[prior].date
+            comp_start = @constructs[prior].comp_start
+          end
+          following = find_following_date(i) if i+1 < @constructs.length
+          if following.nil?           ## THIS SHOULDN'T HAPPEN - TYPE 1 WRAPPERS SHOULD ALWAYS BE BOUND TO A DATE
+            comp_end = @constructs[i].comp_end
+            ed = @curdate
+            p 'Error with a type 1 wrapper and no following date!'
+          else
+            ed = @constructs[following].date
+            comp_end = @constructs[following].comp_end
+          end
+          # replace the wrapper construct with this datespan
+          @constructs[i] = DateSpanConstruct.new(start_date: sd, end_date: ed, comp_start: comp_start, comp_end: comp_end, found_in: __method__)
+          # hold a list of date constructs to delete - only delete at end of loop
+          if following
+            to_delete << following
+          end
+          if prior
+            to_delete << prior
           end
         end
+      if to_delete.length > 0       # some date constructs to delete - delete from back to front
+        to_delete.sort! { |x,y| y <=> x }
+        to_delete.each {|i| @constructs.delete_at(i)}
+      end
     end
-
-
 
 
     def find_prior_date(i)
@@ -401,7 +425,12 @@ module Nickel
     end
 
     def find_following_date(i)
-      return @constructs[i+1].rindex {|c| c.class.to_s.match('Date')}
+      following = @constructs[i+1..@constructs.length - 1].index {|c| c.class.to_s.match('Date')}
+      if following
+        return following + i + 1
+      else
+        return following
+      end
     end
 
 
@@ -1003,6 +1032,7 @@ module Nickel
     end
 
     def found_thiscoming_dayname
+      @week_index = 0
       day_to_add = @curdate.thiscoming(@day_index)
       @constructs << DateConstruct.new(date: day_to_add, comp_start: @pos, comp_end: @pos += 1, found_in: __method__)
       while @components[@pos + 1] && @day_index = ZDate.days_of_week.index(@components[@pos + 1])
@@ -1016,6 +1046,7 @@ module Nickel
     end
 
     def found_this_dayname
+      @week_index = 0
       day_to_add = @curdate.this(@day_index)
       @constructs << DateConstruct.new(date: day_to_add, comp_start: @pos, comp_end: @pos += 1, found_in: __method__)
       while @components[@pos + 1] && @day_index = ZDate.days_of_week.index(@components[@pos + 1])
@@ -1029,9 +1060,21 @@ module Nickel
     end
 
     def found_this_week
-      sd = @curdate
-      ed = @curdate.this(6)
-      @constructs << DateSpanConstruct.new(start_date: sd, end_date: ed, comp_start: @pos, comp_end: @pos += 1, found_in: __method__)
+      # search for following dayname
+      j = 2
+      until @components[@pos + j].nil? || @day_index = ZDate.days_of_week.index(@components[@pos + j]) || @components[@pos + j].match(/(\bor\b|\band\b|\,)/)
+        j += 1
+      end
+      if @components[@pos + j].nil? || @components[@pos + j].match(/(\bor\b|\band\b|\,)/)       # nothing found
+        sd = @curdate
+        ed = @curdate.this(6)
+        @constructs << DateSpanConstruct.new(start_date: sd, end_date: ed, comp_start: @pos, comp_end: @pos += 1, found_in: __method__)
+      else                                          # dayname found - remove week reference and add 'next' for each dayname to pair
+        @components.delete_at(@pos)                 # remove 'this'
+        @components.delete_at(@pos + 1)             # remove 'week'
+        @pos -= 1
+        @week_index = 0
+      end
     end
 
     def match_this_month
@@ -1057,11 +1100,12 @@ module Nickel
     end
 
     def match_next_dayname
-      @day_index = ZDate.days_of_week.index(@components[@pos + 1])  # if "next [day]"
+      @day_index = ZDate.days_of_week.index(@components[@pos + 1])  # if "next [dayname]"
     end
 
     def found_next_dayname
-      day_to_add = @curdate.next(@day_index)
+      @week_index = 1
+      day_to_add = @curdate.x_weeks_from_day(@week_index, @day_index)
       @constructs << DateConstruct.new(date: day_to_add, comp_start: @pos, comp_end: @pos += 1, found_in: __method__)
       while @components[@pos + 1] && @day_index = ZDate.days_of_week.index(@components[@pos + 1])
         # note @pos gets incremented on each pass
@@ -1109,21 +1153,45 @@ module Nickel
       @components[@pos + 1] =~ /weeks?/
     end
 
-    def found_next_week                 # sm - this date logic is wrong - should be the next week starting on Monday
-      #sd = @curdate.add_days(7)
-      sd = @curdate.next(0)
-      ed = sd.add_days(6)               # sm - changed add_days to 6 from 7 - the week ends on Sunday, not Monday
-      @constructs << DateSpanConstruct.new(start_date: sd, end_date: ed, comp_start: @pos, comp_end: @pos += 1, found_in: __method__)
+    # check for patterns of next week + dayname if there is no conjunction between week
+    # and the dayname. this translates to next + dayname
+    def found_next_week
+      # search for following dayname
+      j = 2
+      until @components[@pos + j].nil? || @day_index = ZDate.days_of_week.index(@components[@pos + j]) || @components[@pos + j].match(/(\bor\b|\band\b|\,)/)
+        j += 1
+      end
+      if @components[@pos + j].nil? || @components[@pos + j].match(/(\bor\b|\band\b|\,)/)       # nothing found
+        sd = @curdate.next(0)
+        ed = sd.add_days(6)               # sm - changed add_days to 6 from 7 - the week ends on Sunday, not Monday
+        @constructs << DateSpanConstruct.new(start_date: sd, end_date: ed, comp_start: @pos, comp_end: @pos += 1, found_in: __method__)
+      else                                          # dayname found - remove week reference and add 'next' for each dayname to pair
+        @components.delete_at(@pos)                 # remove 'next'
+        @components.delete_at(@pos + 1)             # remove 'week'
+        @pos -= 1
+        @week_index = 1
+      end
     end
+
 
     def match_week_after_next
       @components[@pos] == 'theweekafternext'
     end
 
     def found_week_after_next
-      sd = @curdate.x_weeks_from_day(2,0)
-      ed = sd.add_days(6)
-      @constructs << DateSpanConstruct.new(start_date: sd, end_date: ed, comp_start: @pos, comp_end: @pos, found_in: __method__)
+      # search for following dayname
+      j = 1
+      until @components[@pos + j].nil? || @day_index = ZDate.days_of_week.index(@components[@pos + j]) || @components[@pos + j].match(/(\bor\b|\band\b|\,)/)
+        j += 1
+      end
+      if @components[@pos + j].nil? || @components[@pos + j].match(/(\bor\b|\band\b|\,)/)       # nothing found
+        sd = @curdate.x_weeks_from_day(2,0)
+        ed = sd.add_days(6)
+        @constructs << DateSpanConstruct.new(start_date: sd, end_date: ed, comp_start: @pos, comp_end: @pos, found_in: __method__)
+      else                                          # dayname found - remove week reference and add 'next' for each dayname to pair
+        @components.delete_at(@pos)                 # remove 'theweekafternex'
+        @week_index = 2
+      end
     end
 
 # sm -------------------------
@@ -1744,14 +1812,9 @@ module Nickel
 #      end
     end
 
-    # sm - modified to always be the next ocurrence of this day
     def found_dayname
-      day_to_add = @curdate.thiscoming(@day_index)
+      day_to_add = @curdate.x_weeks_from_day(@week_index, @day_index)
       @constructs << DateConstruct.new(date: day_to_add, comp_start: @pos, comp_end: @pos, found_in: __method__)
-#      while @components[@pos + 1] && @day_index = ZDate.days_of_week.index(@components[@pos + 1])
-#        # note @pos gets incremented here:
-#        @constructs << DateConstruct.new(date: day_to_add = day_to_add.this(@day_index), comp_start: @pos + 1, comp_end: @pos += 1, found_in: __method__)
-#      end
     end
 
     def match_through_monthname

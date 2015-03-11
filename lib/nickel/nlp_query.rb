@@ -476,7 +476,7 @@ module Nickel
       nsub!(/thelast\s+#{DAY_OF_WEEK}/, '5th \1')     #sm -  thelast dayname  =>  5th dayname
       nsub!(/last/, 'previous')                          #sm - last => previous
       nsub!(/\ba\s+(week|month|day)/, '1 \1')     # a month|week|day  =>  1 month|week|day
-      nsub!(/^(through|until)/, 'today through')   # ^through  =>  today through
+      nsub!(/(\buntil\b|\btill\b|\bto the\b)/, 'through')
       nsub!(/every\s*(night|morning)/, 'every day')
       nsub!(/before\s+12pm/, '6am through 12pm')        # arbitrary
 
@@ -523,6 +523,7 @@ module Nickel
       nsub!(/(\b1\s+)?night/, 'at 8pm through 12am')
 
 
+
       # Handle 'THE' Cases
       # Attempt to pick out where a user entered 'the' when they really mean 'every'.
       # For example,
@@ -543,9 +544,14 @@ module Nickel
         ret_str << m3.gsub(/and\s+(?:the\s+)?#{WEEK_OF_MONTH}\s+#{DAY_OF_WEEK}(?:\s*)(?:of\s+)?(?:the\s+)?(?:month\s+)?/, ' repeats monthly \1 \2 ')
       end
 
-      # The x through the y of oct z  =>  10/x/z through 10/y/z
+      # The x through the y of oct z  =>  10/x/z through 10/y/z - with year
       nsub!(/(?:the\s+)?#{DATE_DD}\s+(?:through|to|until)\s+(?:the\s+)?#{DATE_DD}\s(?:of\s+)#{MONTH_OF_YEAR}\s+(?:of\s+)?#{YEAR}/) do |m1, m2, m3, m4|
         (ZDate.months_of_year.index(m3) + 1).to_s + '/' + m1.delete!("a-z") + '/' + m4 + ' through ' +  (ZDate.months_of_year.index(m3) + 1).to_s + '/' + m2.delete!("a-z") + '/' + m4
+      end
+
+      # The x through the y of oct z  =>  10/x/z through 10/y/z - without year
+      nsub!(/(?:the\s+)?#{DATE_DD}\s+(?:through|to|until)\s+(?:the\s+)?#{DATE_DD}\s(?:of\s+)#{MONTH_OF_YEAR}/) do |m1, m2, m3|
+        (ZDate.months_of_year.index(m3) + 1).to_s + '/' + m1.delete!("a-z") + ' through ' +  (ZDate.months_of_year.index(m3) + 1).to_s + '/' + m2.delete!("a-z")
       end
 
       # The x through the y of oct  =>  10/x through 10/y
