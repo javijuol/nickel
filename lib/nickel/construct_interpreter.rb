@@ -276,10 +276,10 @@ module Nickel
 
         @dsci.each do |dindex|
           occ_base = Occurrence.new(type: :daily,
-                                start_date: @constructs[@dsci[dindex]].start_date,
-                                end_date: @constructs[@dsci[dindex]].end_date,
+                                start_date: @constructs[dindex].start_date,
+                                end_date: @constructs[dindex].end_date,
                                 interval: 1)
-          create_occurrence_for_each_time_in_time_map(occ_base, @dsci[dindex]) { |occ| @occurrences << occ }
+          create_occurrence_for_each_time_in_time_map(occ_base, dindex) { |occ| @occurrences << occ }
         end
     end
 

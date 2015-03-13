@@ -136,7 +136,6 @@ module Nickel
 
     def remove_unnecessary_words
       nsub!(/this coming/, 'thiscoming')        #sm - to mean the next occurence
-      nsub!(/the next\s+#{DAY_OF_WEEK}/, 'thiscoming \1')           #sm -
       nsub!(/the day after next/, 'thedayafter tomorrow')     #sm -
       nsub!(/the week after next/, 'theweekafternext')     #sm -
       nsub!(/the day after/, 'thedayafter')     #sm - when used with 'tomorrow' or a date
@@ -472,13 +471,16 @@ module Nickel
 
     attr_accessor :query_str
 
-    def standardize_input  # sm - "thelast" refers to the final day in the month while "last" means "prior"
+    def standardize_input
+    # sm - "thelast" refers to the final day in the month while "last" means "prior"
       nsub!(/thelast\s+#{DAY_OF_WEEK}/, '5th \1')     #sm -  thelast dayname  =>  5th dayname
       nsub!(/last/, 'previous')                          #sm - last => previous
       nsub!(/\ba\s+(week|month|day)/, '1 \1')     # a month|week|day  =>  1 month|week|day
       nsub!(/(\buntil\b|\btill\b|\bto the\b)/, 'through')
       nsub!(/every\s*(night|morning)/, 'every day')
       nsub!(/before\s+12pm/, '6am through 12pm')        # arbitrary
+      nsub!(/the next\s+#{DAY_OF_WEEK}/, 'thiscoming \1')           #sm -
+      nsub!(/\bany\b\s+#{DAY_OF_WEEK}/, 'every \1')
 
       # 'tonight', 'this evening', 'this afternoon' and 'this morning' without a following 'at' imply a range
       # otherwise, imply today at the specified time in either the am or pm
@@ -657,9 +659,9 @@ module Nickel
       # "dec 2, 3, and 4" --> 12/2, 12/3, 12/4
       # "mon, tue, wed, dec 2, 3, and 4" --> 12/2, 12/3, 12/4
       nsub!(/(#{MONTH_OF_YEAR_NB}\s+(?:the\s+)?(?:(?:#{DATE_DD_WITHOUT_SUFFIX_NB}\s+(?:and\s+)?(?:the\s+)?){1,31})(?:to|through|until)\s+#{DATE_DD_WITHOUT_SUFFIX_NB})/) { |m1| m1.gsub(/#{DATE_DD_WITHOUT_SUFFIX}\s+(to|through|until)/, 'from \1 through ') }
-      nsub!(/(?:(?:#{DAY_OF_WEEK_NB}\s+(?:and\s+)?){1,7})?#{MONTH_OF_YEAR}\s+(?:the\s+)?((?:#{DATE_DD_WITHOUT_SUFFIX_NB}\s+(?:and\s+)?(?:the\s+)?){1,31})/) do |m1, m2|
+      nsub!(/(?:(?:#{DAY_OF_WEEK_NB}\s+(?:and\s+)?){1,7})?#{MONTH_OF_YEAR}\s+(?:the\s+)?((?:#{DATE_DD_WITHOUT_SUFFIX_NB}\s+(?:(and|or|\,)\s+)?(?:the\s+)?){1,31})/) do |m1, m2|
         month_str = (ZDate.months_of_year.index(m1) + 1).to_s
-        m2.gsub(/(and|the)/, '').gsub(/#{DATE_DD_NB_ON_SUFFIX}/) { month_str + '/' + Regexp.last_match(1) }  # last match is from nested match
+        m2.gsub(/(the)/, '').gsub(/#{DATE_DD_NB_ON_SUFFIX}/) { month_str + '/' + Regexp.last_match(1) }  # last match is from nested match
       end
 
       # "monday 12/6" --> 12/6
@@ -1039,10 +1041,20 @@ module Nickel
       nsub!(/(?:\bthe\b\s+)?\bend(?:s|ing)?(?:\s+of)?\s*#{MONTH_OF_YEAR}/) do |m1|
         (ZDate.months_of_year.index(m1) + 1).to_s + '/' + @curdate.jump_to_month(ZDate.months_of_year.index(m1) + 2).sub_days(1).day_str end
 
-      # this week
+      # this/next week
       nsub!(/(?:\bthe\b\s+)?(?:begin(?:s|ning)?|start(?:s|ing)?)(?:\s+(?:in|of))?\s+(\bthis\b|\bnext\b)\s+\bweek\b/, '\1' + ' mon')
       nsub!(/(?:\bthe\b\s+)?\bmid(?:dle)?(?:\s+of)?\s+(\bthis\b|\bnext\b)\s+\bweek\b/, '\1' + ' wed')
       nsub!(/(?:\bthe\b\s+)?\bend(?:s|ing)?(?:\s+of)?\s+(\bthis\b|\bnext\b)\s+\bweek\b/, '\1' + ' fri')
+
+      # this month
+      nsub!(/(?:\bthe\b\s+)?(?:begin(?:s|ning)?|start(?:s|ing)?)(?:\s+(?:in|of))?\s+(\bthis\b|\bthe\b)\s+month\b/, @curdate.month_str + '/1')
+      nsub!(/(?:\bthe\b\s+)?\bmid(?:dle)?(?:\s+of)?\s+(\bthis\b|\bthe\b)\s+month\b/, @curdate.month_str + '/15')
+      nsub!(/(?:\bthe\b\s+)?\bend(?:s|ing)?(?:\s+of)?\s+(\bthis\b|\bthe\b)\s+month\b/, @curdate.month_str + '/' + @curdate.end_of_month.day_str)
+
+      # next month
+      nsub!(/(?:\bthe\b\s+)?(?:begin(?:s|ning)?|start(?:s|ing)?)(?:\s+(?:in|of))?\s+\bnext month\b/, @curdate.add_months(1).month_str + '/1')
+      nsub!(/(?:\bthe\b\s+)?\bmid(?:dle)?(?:\s+of)?\s+\bnext month\b/, @curdate.add_months(1).month_str + '/15')
+      nsub!(/(?:\bthe\b\s+)?\bend(?:s|ing)?(?:\s+of)?\s+\bnext month\b/, @curdate.add_months(1).month_str + '/' + @curdate.add_months(1).end_of_month.day_str)
 
 
       # clean up wrapper terminology
