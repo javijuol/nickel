@@ -504,7 +504,6 @@ module Nickel
           end
           i += 1
         end
-      end
 
         # add orphans to pairs or place in their own pairing
         # orphans always connect to an adjacent pair of the same type, e.g. [Mon or [Tuesday at 4]],
@@ -545,6 +544,7 @@ module Nickel
             pairing << @constructs.length - 1
           end
         end
+      end
     end
 
     def find_pair(type1, index1)

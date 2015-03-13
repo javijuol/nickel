@@ -27,8 +27,8 @@ module Nickel
         finalize_constructs
         if found_dates
           occurrences_from_dates
-        elsif found_one_date_span
-          occurrences_from_one_date_span
+#        elsif found_one_date_span
+#          occurrences_from_one_date_span
         elsif found_recurrences_and_optional_date_span
           occurrences_from_recurrences_and_optional_date_span
         elsif found_wrappers_only
