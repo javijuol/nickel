@@ -135,8 +135,8 @@ module Nickel
         if match_thiscoming_dayname                       # current or following week. If the user means the next occrence,
           found_thiscoming_dayname                        # then we are using the token 'this coming'
         end
-#sm--------------------------------
-
+      elsif match_the_following_week
+        found_the_following_week
       elsif match_this
         if match_this_dayname
           found_thiscoming_dayname          # sm - I changed this to always find the next ocurrence since meetings are always in the future
@@ -145,7 +145,8 @@ module Nickel
         elsif match_this_month
           found_this_month                                # this month (implies 9/1 to 9/30)
         end                                                                                                 # SHOULDN'T "this" HAVE "this weekend" ???
-
+      elsif match_the_following_month
+        found_the_following_month
       elsif match_next
         if match_next_weekend
           found_next_weekend                              # next weekend --- never hit?
@@ -1173,6 +1174,57 @@ module Nickel
       end
     end
 
+    def match_the_following_week
+      @components[@pos] == 'thefollowingweek'
+    end
+
+    # the week depends on a prior date reference, e.g. 'next Monday or the following week'
+    # so we need to check the prior date construct as a reference
+    def found_the_following_week
+      i = @constructs.rindex {|c| c.class.to_s.match('Date')}
+      if i
+        if @constructs[i].class.to_s.match('DateSpan')
+          if @constructs[i].end_date
+            prior_date = @constructs[i].end_date
+          else
+            prior_date = @constructs[i].start_date
+          end
+        else
+          prior_date = @constructs[i].date
+        end
+      else
+        prior_date = @curdate
+      end
+      sd = prior_date.next(0)
+      ed = sd.add_days(6)
+      @constructs << DateSpanConstruct.new(start_date: sd, end_date: ed, comp_start: @pos, comp_end: @pos, found_in: __method__)
+    end
+
+    def match_the_following_month
+      @components[@pos] == 'thefollowingmonth'
+    end
+
+    # the month depends on a prior date reference, e.g. 'every wed this month or monday the following month'
+    # so we need to check the prior date construct as a reference
+    def found_the_following_month
+      i = @constructs.rindex {|c| c.class.to_s.match('Date')}
+      if i
+        if @constructs[i].class.to_s.match('DateSpan')
+          if @constructs[i].end_date
+            prior_date = @constructs[i].end_date
+          else
+            prior_date = @constructs[i].start_date
+          end
+        else
+          prior_date = @constructs[i].date
+        end
+      else
+        prior_date = @curdate
+      end
+      sd = prior_date.beginning_of_next_month
+      ed = sd.end_of_month
+      @constructs << DateSpanConstruct.new(start_date: sd, end_date: ed, comp_start: @pos, comp_end: @pos, found_in: __method__)
+    end
 
     def match_week_after_next
       @components[@pos] == 'theweekafternext'
@@ -1264,7 +1316,7 @@ module Nickel
     def found_next_month
       @sd = @curdate.add_months(1).beginning_of_month
       @ed = @sd.end_of_month
-      @constructs << DateSpanConstruct.new(start_date: sd, end_date: ed, comp_start: @pos, comp_end: @pos += 1, found_in: __method__)
+      @constructs << DateSpanConstruct.new(start_date: @sd, end_date: @ed, comp_start: @pos, comp_end: @pos += 1, found_in: __method__)
     end
 
     def match_week

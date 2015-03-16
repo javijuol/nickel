@@ -31,14 +31,22 @@ module Nickel
     end
 
     def finalize_weekly(cur_date)
-      # this is needed in case someone said "every monday and wed
-      # starting DATE"; we want to find the first occurrence after DATE
-      self.start_date = cur_date.this(day_of_week)
-
+      # if the start and end dates don't match the day of the week, adjust
+      unless start_date.nil?
+        new_start = self.start_date.this(self.day_of_week)
+        if new_start < self.start_date
+          self.start_date = self.start_date.next(self.day_of_week)
+        else
+          self.start_date = new_start
+        end
+      end
       unless end_date.nil?
-        # find the real end date, if someone says "every monday until
-        # dec 1"; find the actual last occurrence
-        self.end_date = end_date.prev(day_of_week)
+        new_end = self.end_date.this(self.day_of_week)
+        if new_end > self.end_date
+          self.end_date = self.start_date.prior(self.day_of_week)
+        else
+          self.end_date = new_end
+        end
       end
     end
 

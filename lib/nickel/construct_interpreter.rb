@@ -20,6 +20,7 @@ module Nickel
 
       @pair_groups.each do |pairing|
         @constructs = pairing.map{ |i| @constructs_all[i]}
+        add_date_if_only_times
         initialize_index_to_type_map
         initialize_user_input_style
         initialize_arrays_of_construct_indices
@@ -27,10 +28,10 @@ module Nickel
         finalize_constructs
         if found_dates
           occurrences_from_dates
-#        elsif found_one_date_span
-#          occurrences_from_one_date_span
         elsif found_recurrences_and_optional_date_span
           occurrences_from_recurrences_and_optional_date_span
+        elsif found_recurrence_and_date_span_pairs
+          occurrences_from_recurrence_and_date_span_pairs
         elsif found_wrappers_only
           occurrences_from_wrappers_only
         end
@@ -38,6 +39,14 @@ module Nickel
     end
 
     private
+
+
+    def add_date_if_only_times
+      if @constructs.count {|c| c.class.to_s.match('Time')} == @constructs.length   # only time constructs
+        @constructs << DateConstruct.new(date: @curdate, comp_start: 0, comp_end: 0, found_in: __method__)
+      end
+    end
+
 
     def initialize_index_to_type_map
       # The @index_to_type_map hash looks like this: {0 => :date, 1 => :timespan, ...}
@@ -226,19 +235,6 @@ module Nickel
     end
 
 
-    # wrappers are not working as written - use them now to tie dates or recurring to a start and end date
-    # thereby changing dateconstructs to datespan constructs
-
-    def tie_wrappers_to_dates
-      wrapper = @index_to_type_map.key(:wrapper)
-      if !wrapper.nil?
-
-
-      end
-    end
-
-
-
     # The @sorted_time_map hash has keys of date/datespans/recurrence indices (in this case date),
     # and an array of time and time span indices as values.  This checks to make sure that array of
     # times is not empty, and if it is there are no times associated with this date construct.
@@ -267,6 +263,18 @@ module Nickel
       # possible wrappers, possible time constructs, possible time spans
       (@dci.size > 0 || @dsci.size > 0) && @rci.size == 0
     end
+
+    def found_time
+      # A time construct without any other constructs
+      @tci.size > 0 || @tsci.size > 0
+    end
+
+    # just time constructs - assume today
+    def occurrences_from_time
+      occ_base = Occurrence.new(type: :single, start_date: @curdate.date)
+      #create_occurrence_for_each_time_in_time_map(occ_base, dindex) { |occ| @occurrences << occ }
+    end
+
 
     def occurrences_from_dates
         @dci.each do |dindex|
@@ -308,7 +316,64 @@ module Nickel
       end
     end
 
-    def found_wrappers_only
+    def found_recurrence_and_date_span_pairs
+      @rci.size > 1 && @dsci.size + @wci.size > 1
+    end
+
+    def occurrences_from_recurrence_and_date_span_pairs
+      # loop for each datespan or wrapper
+      date_ranges = (@dsci + @wci).sort
+      last_i = -1
+      date_ranges.each do |i|
+        if @dsci.index(i)
+          occ_base_opts = { start_date: @constructs[i].start_date, end_date: @constructs[i].end_date }
+        else
+          occ_base_opts = occ_base_opts_from_one_wrapper(i)
+        end
+
+        @rci.each do |rcindex|
+          if rcindex > last_i && rcindex < i
+          # Construct#interpret returns an array of hashes, each hash represents a single occurrence.
+            @constructs[rcindex].interpret.each do |rec_occ_base_opts|
+              # RecurrenceConstruct#interpret returns base_opts for each occurrence,
+              # but they must be merged with start/end dates, if supplied.
+              occ_base = Occurrence.new(rec_occ_base_opts.merge(occ_base_opts))
+              # Attach times:
+             create_occurrence_for_each_time_in_time_map(occ_base, rcindex) { |occ| @occurrences << occ }
+            end
+          end
+        end
+        last_i = i
+      end
+    end
+
+    def occ_base_opts_from_one_wrapper(i)
+      base_opts = {}
+      if @constructs[i].wrapper_type >= 2
+        if base_opts[:start_date].nil? && base_opts[:end_date].nil?   # span must start today
+          base_opts[:start_date] = @curdate.dup
+          base_opts[:end_date] = case @constructs[i].wrapper_type
+                                   when 2 then @curdate.add_days(@constructs[i].wrapper_length)
+                                   when 3 then @curdate.add_weeks(@constructs[i].wrapper_length)
+                                   when 4 then @curdate.add_months(@constructs[i].wrapper_length)
+                                 end
+        elsif base_opts[:start_date] && base_opts[:end_date].nil?
+          base_opts[:end_date] = case @constructs[i].wrapper_type
+                                   when 2 then base_opts[:start_date].add_days(@constructs[i].wrapper_length)
+                                   when 3 then base_opts[:start_date].add_weeks(@constructs[i].wrapper_length)
+                                   when 4 then base_opts[:start_date].add_months(@constructs[i].wrapper_length)
+                                 end
+        elsif base_opts[:start_date].nil? && base_opts[:end_date]    # for 6 months until jan 3rd
+          base_opts[:start_date] = case @constructs[i].wrapper_type
+                                     when 2 then base_opts[:end_date].sub_days(@constructs[i].wrapper_length)
+                                     when 3 then base_opts[:end_date].sub_weeks(@constructs[i].wrapper_length)
+                                     when 4 then base_opts[:end_date].sub_months(@constructs[i].wrapper_length)
+                                   end
+        end
+      end
+    end
+
+      def found_wrappers_only
       # This should really be "found length wrappers only", because @dci.size must be zero,
       # and start/end wrappers require a date.
       @dsci.size == 0 && @rci.size == 0 && @wci.size > 0 && @dci.size == 0

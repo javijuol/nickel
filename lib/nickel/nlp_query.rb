@@ -138,6 +138,8 @@ module Nickel
       nsub!(/this coming/, 'thiscoming')        #sm - to mean the next occurence
       nsub!(/the day after next/, 'thedayafter tomorrow')     #sm -
       nsub!(/the week after next/, 'theweekafternext')     #sm -
+      nsub!(/the following week/, 'thefollowingweek')
+      nsub!(/the following month/, 'thefollowingmonth')
       nsub!(/the day after/, 'thedayafter')     #sm - when used with 'tomorrow' or a date
       nsub!(/the week after/, 'theweekafter')   #sm - when used with a date
       nsub!(/the month after/, 'themonthafter') #sm - when used with a date
@@ -519,10 +521,10 @@ module Nickel
       nsub!(/\s*in\s+(the\s+)even+ing/, ' at 5pm through 8pm')
       nsub!(/\s*at\s+night/, ' at 8pm through 12am')
 
-      nsub!(/(\b1\s+)?morning/, 'at 8am through 12pm')
-      nsub!(/(\b1\s+)?(after\s*)?noon(ish)?/, 'at 12pm through 6pm')
-      nsub!(/(\b1\s+)?evening/, 'at 6pm through 12am')
-      nsub!(/(\b1\s+)?night/, 'at 8pm through 12am')
+      nsub!(/(\b1\b|\bany\b|\ba\b)?\s*morning/, 'at 8am through 12pm')
+      nsub!(/(\b1\b|\bany\b|\ba\b)?\s*(after\s*)?noon(ish)?/, 'at 12pm through 6pm')
+      nsub!(/(\b1\b|\bany\b|\ba\b)?\s*evening/, 'at 6pm through 12am')
+      nsub!(/(\b1\b|\bany\b|\ba\b)?\s*night/, 'at 8pm through 12am')
 
 
 
