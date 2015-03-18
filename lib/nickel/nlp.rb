@@ -4,7 +4,7 @@ require 'nickel/nlp_query'
 require 'nickel/occurrence'
 require 'nickel/construct_finder'
 require 'nickel/construct_interpreter'
-require 'holidays_wrapper'
+require 'nickel/nlp_translate'
 
 module Nickel
   class NLP
@@ -20,12 +20,12 @@ module Nickel
       @input_date = ZDate.new str_time[0..7]   # up to T, note format is already verified
       @input_time = ZTime.new str_time[9..14]  # after T
       @datetext = ''
+
     end
 
     def parse
-      # sm - modified to first parse message into sentences and then loop through each sentence
-
-      @nlp_query = NLPQuery.new(@query, @input_date).standardize   # standardizes the query
+      @nlp_query = NLPTranslate.new(@query).translate    # translates to English
+      @nlp_query = NLPQuery.new(@nlp_query, @input_date).standardize   # standardizes the query
       @construct_finder = ConstructFinder.new(@nlp_query, @input_date, @input_time)
       @construct_finder.run
       @last_pos = @construct_finder.last_pos

@@ -8,28 +8,25 @@ module Nickel
   class NLPQuery
     include NLPQueryConstants
 
-    # NOTE - THERE ARE HARDCODED TIME REFERENCES THAT SHOULD BE READ FROM USER OBJECT
-    # SAME FOR REGION AND LANGUAGE!!!!
 
     def initialize(query_str, input_date)
       @query_str = query_str.dup
       @curdate = input_date
-      # load holiday array - NOTE - REGION SHOULD NOT BE HARD CODED!
-      region = 'us'
       @holidays = []
-      Holidays.between(input_date.to_date,input_date.add_days(365).to_date, region, :informal).each do |holiday|
+
+      # build a @holidays array of all holidays for both the US and the passed region
+      # initially load all relevant regions - there may be a future problem for holidays
+      # with the same name that have different dates by region
+
+      Holidays.between(input_date.to_date,input_date.add_days(365).to_date, 'us', 'ca', 'es', :informal).each do |holiday|
         # clean names for nlp matching
         holiday[:name].gsub!(/,/, ' ')
         holiday[:name].gsub!(/\./, '')
         holiday[:name].gsub!(/;/, '')
         holiday[:name].gsub!(/['`]/, '')
         name = holiday[:name].downcase
-        case region
-          when 'us'
-            name.gsub!(/new years day/,'new years')
-            name.gsub!(/christmas day/,'christmas')
-        end
-
+        name.gsub!(/new years day/,'new years')
+        name.gsub!(/christmas day/,'christmas')
         # add cleaned names to @holidays array
         @holidays.push({:date => holiday[:date], :name => name})
       end

@@ -43,7 +43,7 @@ module Nickel
       unless end_date.nil?
         new_end = self.end_date.this(self.day_of_week)
         if new_end > self.end_date
-          self.end_date = self.start_date.prior(self.day_of_week)
+          self.end_date = self.end_date.prev(self.day_of_week)
         else
           self.end_date = new_end
         end

@@ -398,7 +398,7 @@ module Nickel
           following = find_following_date(i) if i+1 < @constructs.length
           if following.nil?           ## THIS SHOULDN'T HAPPEN - TYPE 1 WRAPPERS SHOULD ALWAYS BE BOUND TO A DATE
             comp_end = @constructs[i].comp_end
-            ed = @curdate
+            ed = @curdate.add_days(30)
             p 'Error with a type 1 wrapper and no following date!'
           else
             ed = @constructs[following].date
