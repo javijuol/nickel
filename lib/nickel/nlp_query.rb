@@ -473,7 +473,7 @@ module Nickel
     def standardize_input
     # sm - "thelast" refers to the final day in the month while "last" means "prior"
       nsub!(/thelast\s+#{DAY_OF_WEEK}/, '5th \1')     #sm -  thelast dayname  =>  5th dayname
-      nsub!(/last/, 'previous')                          #sm - last => previous
+      nsub!(/\blast\b/, 'previous')                          #sm - last => previous
       nsub!(/\ba\s+(week|month|day)/, '1 \1')     # a month|week|day  =>  1 month|week|day
       nsub!(/(\buntil\b|\btill\b|\bto the\b)/, 'through')
       nsub!(/every\s*(night|morning)/, 'every day')
@@ -518,10 +518,10 @@ module Nickel
       nsub!(/\s*in\s+(the\s+)even+ing/, ' at 5pm through 8pm')
       nsub!(/\s*at\s+night/, ' at 8pm through 12am')
 
-      nsub!(/(\b1\b|\bany\b|\ba\b)?\s*morning/, 'at 8am through 12pm')
-      nsub!(/(\b1\b|\bany\b|\ba\b)?\s*(after\s*)?noon(ish)?/, 'at 12pm through 6pm')
-      nsub!(/(\b1\b|\bany\b|\ba\b)?\s*evening/, 'at 6pm through 12am')
-      nsub!(/(\b1\b|\bany\b|\ba\b)?\s*night/, 'at 8pm through 12am')
+      nsub!(/(\b1\b|\bany\b|\ba\b)?\s*morning/, ' at 8am through 12pm')
+      nsub!(/(\b1\b|\bany\b|\ba\b)?\s*(after\s*)?noon(ish)?/, ' at 12pm through 6pm')
+      nsub!(/(\b1\b|\bany\b|\ba\b)?\s*evening/, ' at 6pm through 12am')
+      nsub!(/(\b1\b|\bany\b|\ba\b)?\s*night/, ' at 8pm through 12am')
 
 
 

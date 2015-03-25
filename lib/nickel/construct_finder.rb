@@ -275,19 +275,45 @@ module Nickel
       elsif match_first_day
         if match_first_day_this_month
           found_first_day_this_month                    # first day this month
+        elsif match_first_day_ofthe_month
+            found_first_day_ofthe_month                    # first day this month
         elsif match_first_day_next_month
           found_first_day_next_month                    # first day next month
         elsif match_first_day_monthname
           found_first_day_monthname                     # first day january (well this is stupid, "first day of january" gets preprocessed into "1/1", so what is the point of this?)
         end
 
+      elsif match_first_week
+        if match_first_week_this_month
+          found_first_week_this_month                    # first day this month
+        elsif match_first_week_ofthe_month
+          found_first_week_ofthe_month                    # first day next month
+        elsif match_first_week_next_month
+          found_first_week_next_month                    # first day next month
+        elsif match_first_week_monthname
+          found_first_week_monthname                     # first day january (well this is stupid, "first day of january" gets preprocessed into "1/1", so what is the point of this?)
+        end
+
       elsif match_last_day                              #sm - I have changed this so that the token is 'thelast'
         if match_last_day_this_month
-          found_last_day_this_month                     # last day this month
+          found_last_day_this_month
+        elsif match_last_day_ofthe_month
+          found_last_day_ofthe_month
         elsif match_last_day_next_month
           found_last_day_next_month                     # last day next month
         elsif match_last_day_monthname
           found_last_day_monthname                      # last day november
+        end
+
+      elsif match_last_week
+        if match_last_week_this_month
+          found_last_week_this_month
+        elsif match_last_week_ofthe_month
+          found_last_week_ofthe_month
+        elsif match_last_week_next_month
+          found_last_week_next_month                     # last day next month
+        elsif match_last_week_monthname
+          found_last_week_monthname                      # last day november
         end
 
       elsif match_at
@@ -1067,8 +1093,13 @@ module Nickel
         j += 1
       end
       if @components[@pos + j].nil? || @components[@pos + j].match(/(\bor\b|\band\b|\,)/)       # nothing found
-        sd = @curdate
-        ed = @curdate.this(6)
+        if @curdate.dayindex >3 ## if it's Friday-Sunday, assume he means next week
+          sd = @curdate.next(0)
+          ed = sd.add_days(6)
+        else
+          sd = @curdate
+          ed = @curdate.this(6)
+        end
         @constructs << DateSpanConstruct.new(start_date: sd, end_date: ed, comp_start: @pos, comp_end: @pos += 1, found_in: __method__)
       else                                          # dayname found - remove week reference and add 'next' for each dayname to pair
         @components.delete_at(@pos)                 # remove 'this'
@@ -1173,6 +1204,7 @@ module Nickel
         @week_index = 1
       end
     end
+
 
     def match_the_following_week
       @components[@pos] == 'thefollowingweek'
@@ -1627,6 +1659,14 @@ module Nickel
       @constructs << DateConstruct.new(date: @curdate.beginning_of_month, comp_start: @pos, comp_end: @pos += 3, found_in: __method__)
     end
 
+    def match_first_day_ofthe_month
+      @components[@pos + 2] == 'of' && @components[@pos + 3] == 'the' && @components[@pos + 4] == 'month'                  # 1st day this month
+    end
+
+    def found_first_day_ofthe_month
+      @constructs << DateConstruct.new(date: @curdate.beginning_of_month, comp_start: @pos, comp_end: @pos += 4, found_in: __method__)
+    end
+
     def match_first_day_next_month
       @components[@pos + 2] == 'next' && @components[@pos + 3] == 'month'        # 1st day next month
     end
@@ -1643,16 +1683,68 @@ module Nickel
       @constructs << DateConstruct.new(date: @curdate.jump_to_month(@month_index + 1), comp_start: @pos, comp_end: @pos += 2, found_in: __method__)
     end
 
+    def match_first_week
+      @components[@pos] == '1st' && @components[@pos + 1] == 'week'
+    end
+
+    def match_first_week_this_month
+      @components[@pos + 2] == 'this' && @components[@pos + 3] == 'month'                  # 1st day this month
+    end
+
+    def found_first_week_this_month
+      @sd = @curdate.beginning_of_month
+      @ed = @sd.add_days(6)
+      @constructs << DateSpanConstruct.new(start_date: @sd, end_date: @ed, comp_start: @pos, comp_end: @pos += 3, found_in: __method__)
+    end
+
+    def match_first_week_ofthe_month
+      @components[@pos + 2] == 'of' && @components[@pos + 3] == 'the' && @components[@pos + 4] == 'month'                  # 1st day this month
+    end
+
+    def found_first_week_ofthe_month
+      @sd = @curdate.beginning_of_month
+      @ed = @sd.add_days(6)
+      @constructs << DateSpanConstruct.new(start_date: @sd, end_date: @ed, comp_start: @pos, comp_end: @pos += 4, found_in: __method__)
+    end
+
+    def match_first_week_next_month
+      @components[@pos + 2] == 'next' && @components[@pos + 3] == 'month'        # 1st day next month
+    end
+
+    def found_first_week_next_month
+      @sd = @curdate.add_months(1).beginning_of_month
+      @ed = @sd.add_days(6)
+      @constructs << DateSpanConstruct.new(start_date: @sd, end_date: @ed, comp_start: @pos, comp_end: @pos += 3, found_in: __method__)
+    end
+
+    def match_first_week_monthname
+      @components[@pos + 2] =~ /(in|of)/ && @month_index = ZDate.months_of_year.index(@components[@pos + 3])
+    end
+
+    def found_first_week_monthname
+      @sd = @curdate.jump_to_month(@month_index + 1).beginning_of_month
+      @ed = @sd.add_days(6)
+      @constructs << DateSpanConstruct.new(start_date: @sd, end_date: @ed, comp_start: @pos, comp_end: @pos += 3, found_in: __method__)
+    end
+
     def match_last_day
       @components[@pos] == 'thelast' && @components[@pos + 1] == 'day'     # last day - sm- changed to thelast
     end
 
     def match_last_day_this_month
-      @components[@pos + 2] == 'this' && @components[@pos + 3] == 'month'                  # 1st day this month
+      @components[@pos + 2] == 'this' && @components[@pos + 3] == 'month'
     end
 
     def found_last_day_this_month
       @constructs << DateConstruct.new(date: @curdate.end_of_month, comp_start: @pos, comp_end: @pos += 3, found_in: __method__)
+    end
+
+    def match_last_day_ofthe_month
+      @components[@pos + 2] == 'of' && @components[@pos + 3] == 'the' && @components[@pos + 4] == 'month'
+    end
+
+    def found_last_day_ofthe_month
+      @constructs << DateConstruct.new(date: @curdate.end_of_month, comp_start: @pos, comp_end: @pos += 4, found_in: __method__)
     end
 
     def match_last_day_next_month
@@ -1669,6 +1761,50 @@ module Nickel
 
     def found_last_day_monthname
       @constructs << DateConstruct.new(date: @curdate.jump_to_month(@month_index + 1).end_of_month, comp_start: @pos, comp_end: @pos += 2, found_in: __method__)
+    end
+
+    def match_last_week
+      @components[@pos] == 'thelast' && @components[@pos + 1] == 'week'
+    end
+
+    def match_last_week_this_month
+      @components[@pos + 2] == 'this' && @components[@pos + 3] == 'month'                  # 1st day this month
+    end
+
+    def found_last_week_this_month
+      @ed = @curdate.end_of_month
+      @sd = @ed.sub_days(6)
+      @constructs << DateSpanConstruct.new(start_date: @sd, end_date: @ed, comp_start: @pos, comp_end: @pos += 3, found_in: __method__)
+    end
+
+    def match_last_week_ofthe_month
+      @components[@pos + 2] == 'of' && @components[@pos + 3] == 'the' && @components[@pos + 4] == 'month'                  # 1st day this month
+    end
+
+    def found_last_week_ofthe_month
+      @ed = @curdate.end_of_month
+      @sd = @ed.sub_days(6)
+      @constructs << DateSpanConstruct.new(start_date: @sd, end_date: @ed, comp_start: @pos, comp_end: @pos += 4, found_in: __method__)
+    end
+
+    def match_last_week_next_month
+      @components[@pos + 2] == 'next' && @components[@pos + 3] == 'month'        # 1st day next month
+    end
+
+    def found_last_week_next_month
+      @ed = @curdate.add_months(1).end_of_month
+      @sd = @ed.sub_days(6)
+      @constructs << DateSpanConstruct.new(start_date: @sd, end_date: @ed, comp_start: @pos, comp_end: @pos += 3, found_in: __method__)
+    end
+
+    def match_last_week_monthname
+      @components[@pos + 2] =~ /(in|of)/ && @month_index = ZDate.months_of_year.index(@components[@pos + 3])
+    end
+
+    def found_last_week_monthname
+      @ed = @curdate.jump_to_month(@month_index + 1).end_of_month
+      @sd = @ed.sub_days(6)
+      @constructs << DateSpanConstruct.new(start_date: @sd, end_date: @ed, comp_start: @pos, comp_end: @pos += 3, found_in: __method__)
     end
 
     def match_at
@@ -1866,6 +2002,9 @@ module Nickel
 
     def found_dayname
       day_to_add = @curdate.x_weeks_from_day(@week_index, @day_index)
+      if day_to_add <= @curdate
+        day_to_add = day_to_add.add_weeks(1)
+      end
       @constructs << DateConstruct.new(date: day_to_add, comp_start: @pos, comp_end: @pos, found_in: __method__)
     end
 

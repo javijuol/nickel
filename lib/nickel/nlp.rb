@@ -38,7 +38,7 @@ module Nickel
       @construct_interpreter.run
 
       @occurrences = @construct_interpreter.occurrences.each { |occ| occ.finalize(@input_date) }   # finds start and end dates
-      @occurrences.delete_if {|occ| occ[:start_date].nil? and occ[:end_date].nil?}
+#      @occurrences.delete_if {|occ| occ[:start_date].nil? and occ[:end_date].nil?}
       @occurrences.sort_by!(&:start_date)
       @occurrences
 

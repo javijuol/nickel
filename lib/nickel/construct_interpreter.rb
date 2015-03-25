@@ -20,7 +20,6 @@ module Nickel
 
       @pair_groups.each do |pairing|
         @constructs = pairing.map{ |i| @constructs_all[i]}
-        add_date_if_only_times
         initialize_index_to_type_map
         initialize_user_input_style
         initialize_arrays_of_construct_indices
@@ -32,6 +31,10 @@ module Nickel
           occurrences_from_recurrences_and_optional_date_span
         elsif found_recurrence_and_date_span_pairs
           occurrences_from_recurrence_and_date_span_pairs
+        elsif found_recurrences_only
+          occurrences_from_recurrence_only
+        elsif found_time
+          occurrences_from_time
         elsif found_wrappers_only
           occurrences_from_wrappers_only
         end
@@ -42,7 +45,7 @@ module Nickel
 
 
     def add_date_if_only_times
-      if @constructs.count {|c| c.class.to_s.match('Time')} == @constructs.length   # only time constructs
+      if @constructs.length > 0 && @constructs.count {|c| c.class.to_s.match('Time')} == @constructs.length   # only time constructs
         @constructs << DateConstruct.new(date: @curdate, comp_start: 0, comp_end: 0, found_in: __method__)
       end
     end
@@ -266,13 +269,35 @@ module Nickel
 
     def found_time
       # A time construct without any other constructs
-      @tci.size > 0 || @tsci.size > 0
+      (@tci.size > 0 || @tsci.size > 0) && @dci.size == 0 && @dsci.size == 0 && @rci.size == 0 && @wci.size == 0
     end
 
-    # just time constructs - assume today
+    # just time constructs
     def occurrences_from_time
-      occ_base = Occurrence.new(type: :single, start_date: @curdate.date)
-      #create_occurrence_for_each_time_in_time_map(occ_base, dindex) { |occ| @occurrences << occ }
+      occ_base = Occurrence.new(type: :single)
+      @tci.each do |tindex|
+        occ = occ_base.dup
+        occ.start_time = start_time_from_tindex(tindex)
+        if index_references_time(tindex)
+          occ.start_time = @constructs[tindex].time
+        elsif index_references_timespan(tindex)
+          occ.start_time = @constructs[tindex].start_time
+          occ.end_time = @constructs[tindex].end_time
+        end
+        @occurrences << occ
+      end
+
+      @tsci.each do |tindex|
+        occ = occ_base.dup
+        occ.start_time = start_time_from_tindex(tindex)
+        if index_references_time(tindex)
+          occ.start_time = @constructs[tindex].time
+        elsif index_references_timespan(tindex)
+          occ.start_time = @constructs[tindex].start_time
+          occ.end_time = @constructs[tindex].end_time
+        end
+        @occurrences << occ
+      end
     end
 
 
@@ -291,18 +316,31 @@ module Nickel
         end
     end
 
+    def found_recurrences_only
+      @rci.size >= 1 and @dsci.size == 0
+    end
+
+    def occurrences_from_recurrence_only
+      # add a date span construct from today for one month
+      occ_base_opts = { start_date: @curdate, end_date: @curdate.add_months(1) }
+      @rci.each do |rcindex|
+        # Construct#interpret returns an array of hashes, each hash represents a single occurrence.
+        @constructs[rcindex].interpret.each do |rec_occ_base_opts|
+          # RecurrenceConstruct#interpret returns base_opts for each occurrence,
+          # but they must be merged with start/end dates, if supplied.
+          occ_base = Occurrence.new(rec_occ_base_opts.merge(occ_base_opts))
+          # Attach times:
+          create_occurrence_for_each_time_in_time_map(occ_base, rcindex) { |occ| @occurrences << occ }
+        end
+      end
+    end
+
     def found_recurrences_and_optional_date_span
-      @dsci.size <= 1 && @rci.size >= 1   # dates are optional
+      @dsci.size == 1 && @rci.size >= 1
     end
 
     def occurrences_from_recurrences_and_optional_date_span
-      if @dsci.size == 1
-        # If a date span exists, it functions as wrapper.
-        occ_base_opts = { start_date: @constructs[@dsci[0]].start_date, end_date: @constructs[@dsci[0]].end_date }
-      else
-        # Perhaps there are type 0 or type 1 wrappers to provide start/end dates.
-        occ_base_opts = occ_base_opts_from_wrappers
-      end
+      occ_base_opts = { start_date: @constructs[@dsci[0]].start_date, end_date: @constructs[@dsci[0]].end_date }
 
       @rci.each do |rcindex|
         # Construct#interpret returns an array of hashes, each hash represents a single occurrence.
