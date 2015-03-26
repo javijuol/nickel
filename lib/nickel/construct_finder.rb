@@ -15,6 +15,7 @@ module Nickel
       @constructs = []
       @pair_groups = []               # an array of all found pairs
       @week_index = 0                 # use to establish the week for any daynames that follow, e.g. next week on Wednesay - the 'next week' sets the index to 1 and then Wed is calced accordingly
+      @negate = false                 # use for date/times to exclude
     end
 
     # NOTE - The program uses the concept of a wrapper for date or time ranges without a defined starting date
@@ -48,6 +49,17 @@ module Nickel
       @date1 = nil
       @date2 = nil
     end
+
+    def new_find_constructs
+
+    end
+
+
+
+
+
+
+
 
     def find_constructs
       reset_instance_vars
@@ -2046,6 +2058,12 @@ module Nickel
       # wrapper_type 1 is an end wrapper
       @constructs << WrapperConstruct.new(wrapper_type: 1, comp_start: @pos, comp_end: @pos, found_in: __method__)
     end
+
+    def match_except
+
+    end
+
+
 
     def match_time
       @time1 = ZTime.interpret(@components[@pos])

@@ -2,6 +2,7 @@
 require 'nickel/zdate'
 require 'nickel/ztime'
 require 'nickel/nlp_query_constants'
+require 'easy_translate'
 
 
 module Nickel
@@ -13,10 +14,17 @@ module Nickel
 
     def translate
       # run the API here
-
+      EasyTranslate.api_key = 'AIzaSyBRkb0i9k2VO4B9N7731oBhrT-VS56UNbQ'
+      language = EasyTranslate.detect(@query_str)
+      @query_str = EasyTranslate.translate(@query_str, :to => :en)
 
       # post-API processing - based on returned language
+      case language
+        when 'es'           # Spanish
+          @query_str = 'tomorrow' if @query_str.downcase == 'morning'
+      end
 
+      p @query_str, language
       return @query_str
     end
   end

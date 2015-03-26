@@ -45,4 +45,5 @@ Gem::Specification.new do |s|
     s.add_dependency(%q<kramdown>, [">= 0"])
   end
   s.add_dependency(%q<holidays>, [">= 0"])
+  s.add_dependency(%q<easy_translate>, [">= 0"])
 end

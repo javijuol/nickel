@@ -157,7 +157,7 @@ module Nickel
       nsub!(/next\s+occ?urr?[ae]nce(\s+is)?/, 'start')
       nsub!(/next\s+date(\s+it)?(\s+occ?urr?s)?(\s+is)?/, 'start')
       nsub!(/forever/, 'repeats daily')
-#      nsub!(/\bany(?:\s*)day\b/, 'every day')
+      nsub!(/\bany\s*day\b/, '')
       nsub!(/^anytime$/, 'every day')  # user entered anytime by itself, not 'dayname anytime', caught next
       nsub!(/any(\s)?time|whenever/, 'all day')
       nsub!(/\bnoon\b/, '12:00pm')

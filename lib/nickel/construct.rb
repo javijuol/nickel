@@ -1,6 +1,6 @@
 module Nickel
   class Construct
-    attr_accessor :comp_start, :comp_end, :found_in
+    attr_accessor :comp_start, :comp_end, :found_in, :negate
     def initialize(h)
       h.each { |k, v| send("#{k}=", v) }
     end
