@@ -21,7 +21,7 @@ module Nickel
       # post-API processing - based on returned language
       case language
         when 'es'           # Spanish
-          @query_str = 'tomorrow' if @query_str.downcase == 'morning'
+          @query_str = 'tomorrow' if @query_str.downcase == 'morning'   ## because translates "manana" as "morning"
       end
 
       p @query_str, language

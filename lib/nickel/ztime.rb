@@ -234,10 +234,12 @@ module Nickel
       #     c.)            5:30,   12:30,    20:00
       #     d.)            5:3,    12:3,     20:3    ...  that's not needed but we supported it in version 1, this would be 5:30 and 12:30
       #     e.)            5:30am, 12:30am
+      #     f.) 5.30h                                ... military time
       #     20:00am, 20:00pm ... ZTime will flag these as invalid, so it is ok if we match them here
       def interpret(str)
         a_b   = /^(\d{1,4})(am|pm)?$/                     # handles cases (a) and (b)
         c_d_e = /^(\d{1,2}):(\d{1,2})(am|pm)?$/           # handles cases (c), (d), and (e)
+        f = /^(\d{1,2}).(\d{1,2})h?$/                     # handles case (f)
         if mdata = str.match(a_b)
           am_pm = mdata[2]
           # this may look a bit confusing, but all we are doing is interpreting
@@ -257,6 +259,9 @@ module Nickel
           end
         elsif mdata = str.match(c_d_e)
           am_pm = mdata[3]
+          hstr = mdata[1]
+          mstr = mdata[2]
+        elsif mdata = str.match(f)
           hstr = mdata[1]
           mstr = mdata[2]
         else

@@ -54,6 +54,7 @@ module Nickel
       standardize_times
       standardize_am_pm
       replace_hyphens
+      remove_commas_inside_dates
       convert_holidays_to_dates
       insert_repeats_before_words_indicating_recurrence_lame
       insert_space_at_end_of_string_lame
@@ -421,7 +422,7 @@ module Nickel
     end
 
     def standardize_times
-      nsub!(/(\d{1,2})\s*(\d{2})/, '\1:\2')
+#      nsub!(/(\d{1,2})\s*(\d{2})/, '\1:\2')
 #      nsub!(/\s+(\d{1,2})(\z|\s+)/, ' \1:00 ')
     end
 
@@ -434,6 +435,14 @@ module Nickel
 
     def replace_hyphens   # when between numbers or days of week
       nsub!(/(-+#{DAY_OF_WEEK}|\d+-+\d+)/, ' through ')
+    end
+
+    def remove_commas_inside_dates
+      nsub!(/(mon|tue|wed|thu|fri|sat|sun)\s*\,\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s*(\d+)(st|nd|rd|th)?\s*\,\s*(\d{4}|\d{2})/,'\1 \2 \3 \5')
+      nsub!(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s*(\d+)(st|nd|rd|th)?\s*\,\s*(\d{4}|\d{2})/,'\1 \2 \4')
+      nsub!(/(mon|tue|wed|thu|fri|sat|sun)\s*\,\s*(\d{1,2}:\d{2})/, '\1 \2')
+      nsub!(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s*(\d+)(st|nd|rd|th)?\s*\,\s*(\d{1,2}:\d{2})/,'\1 \2 \4')
+      nsub!(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s*(\d+)\s*(\d{4}|\d{2})\s*\,\s*(\d{1,2}:\d{2})/,'\1 \2 \3 \4')
     end
 
     def convert_holidays_to_dates

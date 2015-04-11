@@ -421,10 +421,19 @@ module Nickel
 
     # this will look for any type 1 wrappers and marry together any adjacent dates into a datespan
     # if there is no prior date, today is assumed
+    # if there is no following date, ignore
     def convert_wrapper1_into_date_ranges
       to_delete = []
       wrappers = (@constructs.map.with_index {|c, i| i if c.class.to_s.match('Wrap') && c.wrapper_type == 1}).reject {|c| c.nil?}
         wrappers.each do  |i|
+          following = find_following_date(i) if i+1 < @constructs.length
+          if following.nil?           ## THIS SHOULDN'T HAPPEN - TYPE 1 WRAPPERS SHOULD ALWAYS BE BOUND TO A DATE
+            @constructs.delete_at(i)   ## delete the wrapper
+            next                      ## exit the process
+          else
+            ed = @constructs[following].date
+            comp_end = @constructs[following].comp_end
+          end
           prior = find_prior_date(i) if i > 0
           if prior.nil?
             sd = @curdate
@@ -432,15 +441,6 @@ module Nickel
           else
             sd = @constructs[prior].date
             comp_start = @constructs[prior].comp_start
-          end
-          following = find_following_date(i) if i+1 < @constructs.length
-          if following.nil?           ## THIS SHOULDN'T HAPPEN - TYPE 1 WRAPPERS SHOULD ALWAYS BE BOUND TO A DATE
-            comp_end = @constructs[i].comp_end
-            ed = @curdate.add_days(30)
-            p 'Error with a type 1 wrapper and no following date!'
-          else
-            ed = @constructs[following].date
-            comp_end = @constructs[following].comp_end
           end
           # replace the wrapper construct with this datespan
           @constructs[i] = DateSpanConstruct.new(start_date: sd, end_date: ed, comp_start: comp_start, comp_end: comp_end, found_in: __method__)
@@ -571,6 +571,7 @@ module Nickel
 
         # any remaining orphans should go into their own pairing - insert into pair_groups in the appropriate location
         @orphans.each do |orphan|
+          @pairing = []
           @pairing << orphan
           @pair_groups.insert(insert_spot(orphan), @pairing)
         end
@@ -2047,7 +2048,7 @@ module Nickel
 
     def found_start
       # wrapper_type 0 is a start wrapper
-      @constructs << WrapperConstruct.new(wrapper_type: 0, comp_start: @pos, comp_end: @pos, found_in: __method__)
+#      @constructs << WrapperConstruct.new(wrapper_type: 0, comp_start: @pos, comp_end: @pos, found_in: __method__)
     end
 
     def match_through
@@ -2058,11 +2059,6 @@ module Nickel
       # wrapper_type 1 is an end wrapper
       @constructs << WrapperConstruct.new(wrapper_type: 1, comp_start: @pos, comp_end: @pos, found_in: __method__)
     end
-
-    def match_except
-
-    end
-
 
 
     def match_time
