@@ -239,7 +239,7 @@ module Nickel
       def interpret(str)
         a_b   = /^(\d{1,4})(am|pm)?$/                     # handles cases (a) and (b)
         c_d_e = /^(\d{1,2}):(\d{1,2})(am|pm)?$/           # handles cases (c), (d), and (e)
-        f = /^(\d{1,2}).(\d{1,2})h?$/                     # handles case (f)
+        f = /^(\d{1,2})\.(\d{1,2})h?$/                     # handles case (f)
         if mdata = str.match(a_b)
           am_pm = mdata[2]
           # this may look a bit confusing, but all we are doing is interpreting
