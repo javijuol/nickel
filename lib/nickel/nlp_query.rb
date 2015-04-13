@@ -56,7 +56,7 @@ module Nickel
       replace_hyphens
       remove_commas_inside_dates
       convert_holidays_to_dates
-      insert_repeats_before_words_indicating_recurrence_lame
+#      insert_repeats_before_words_indicating_recurrence_lame
       insert_space_at_end_of_string_lame
       @after_formatting = query_str.dup    # save current state
     end

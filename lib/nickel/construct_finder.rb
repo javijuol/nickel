@@ -67,8 +67,8 @@ module Nickel
       if match_every
         if match_every_dayname
           found_every_dayname                             # every tue
-        elsif match_every_day
-          found_every_day                                 # every day
+#        elsif match_every_day
+#          found_every_day                                 # every day
         elsif match_every_other
           if match_every_other_dayname
             found_every_other_dayname                     # every other fri
