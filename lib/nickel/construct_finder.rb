@@ -376,7 +376,11 @@ module Nickel
         elsif match_dayname_before_date
           found_dayname_before_date
         elsif match_dayname_the_ordinal
-          found_dayname_the_ordinal                     # monday the 21st
+          if match_dayname_the_ordinal_month            # monday 15th April
+            found_dayname_the_ordinal_month
+          else
+            found_dayname_the_ordinal                     # monday the 21st
+          end
         elsif match_dayname_x_weeks_from_next
           found_dayname_x_weeks_from_next               # monday 2 weeks from next
         elsif match_dayname_x_weeks_from_this
@@ -386,6 +390,10 @@ module Nickel
         else
           found_dayname                                 # monday (also monday tuesday wed...)
         end
+
+      elsif match_ordinal_month
+        found_ordinal_month                             # 28th [of] April
+
 
       elsif match_monthname
         found_monthname                                 # december (implies 12/1 to 12/31)
@@ -720,7 +728,7 @@ module Nickel
           end
           last_index += 1
         end
-        last_index = construct.comp_end + 1
+        last_index = [construct.comp_end + 1, @components.length].min
         while index < last_index
           datetext << @components[index] + ' '
           index += 1
@@ -1660,6 +1668,33 @@ module Nickel
       @constructs << DateConstruct.new(date: @curdate.add_months(1).beginning_of_month.add_days(@length - 1), comp_start: @pos, comp_end: @pos += 2, found_in: __method__)
     end
 
+    def match_ordinal_month
+      if @components[@pos] =~ /(0?[1-9]|[12][0-9]|3[01])(st|nd|rd|th)/ && @components[@pos + 1] == 'of' && @month_index = ZDate.months_of_year.index(@components[@pos + 2])
+        @components.delete_at(@pos + 1)
+      end
+      @components[@pos] =~ /(0?[1-9]|[12][0-9]|3[01])(st|nd|rd|th)/ && @month_index = ZDate.months_of_year.index(@components[@pos + 1])
+    end
+
+    def found_ordinal_month
+      day = @components[@pos].to_i.to_s
+
+      # check for year
+      if @components[@pos + 2] =~ /(of|in)/ && @components[@pos + 3] =~ /\d{4}/
+        year = components[@pos + 3]
+        @components.delete_at(@pos + 2)
+      elsif @components[@pos + 2] =~ /\d{4}/
+        year = components[@pos + 2]
+      else
+        year = @curdate.year_str
+      end
+      month = (@month_index + 101).to_s[1,2]
+      datestr = year+month+day
+      @date1 = ZDate.new(datestr)
+
+      @constructs << DateConstruct.new(date: @date1, comp_start: @pos, comp_end: @pos += 2, found_in: __method__)
+    end
+
+
     def match_first_day
       @components[@pos] == '1st' && @components[@pos + 1] == 'day'     # 1st day
     end
@@ -1962,13 +1997,38 @@ module Nickel
     end
 
     def match_dayname_the_ordinal
-      @components[@pos + 1] == 'the' && @date1 = ZDate.interpret(@components[@pos + 2], @curdate)    # if "tue the 23rd"
+      if @components[@pos + 1] == 'the' && @date1 = ZDate.interpret(@components[@pos + 2], @curdate)
+          @components.delete_at(@pos + 1)     ## remove the 'the'
+      end
+      @date1 = ZDate.interpret(@components[@pos + 1], @curdate)
+    end
+
+    ## need to check for year after month here and in found_month
+    ## also in match_time, need to distinguish between year and time
+
+    def match_dayname_the_ordinal_month
+      if @components[@pos + 2] == 'of' && @month_index = ZDate.months_of_year.index(@components[@pos + 3])
+        @components.delete_at(@pos + 2)     # remove the 'of'
+      end
+      @month_index = ZDate.months_of_year.index(@components[@pos + 2])
+    end
+
+    def found_dayname_the_ordinal_month
+      # check for year
+      if @components[@pos + 3] =~ /(of|in)/ && @components[@pos + 4] =~ /\d{4}/
+        add_months = 12 * (components[@pos + 4].to_i - @curdate.year)
+        @components.delete_at(@pos + 3)
+      elsif @components[@pos + 3] =~ /\d{4}/
+        add_months = 12 * (components[@pos + 3].to_i - @curdate.year)
+      end
+      add_months += ((@month_index + 12) - (@curdate.month - 1)) % 12
+      @constructs << DateConstruct.new(date: @date1.add_months(add_months), comp_start: @pos, comp_end: @pos += 3, found_in: __method__)
     end
 
     def found_dayname_the_ordinal
       # user may have specified "monday the 2nd" while in the previous month, so first check if dayname matches date.dayname, if it doesn't increment by a month and check again
       if @date1.dayname == @components[@pos] || ((tmp = @date1.add_months(1)) && tmp.dayname == @components[@pos] && @date1 = tmp)
-        @constructs << DateConstruct.new(date: @date1, comp_start: @pos, comp_end: @pos += 2, found_in: __method__)
+        @constructs << DateConstruct.new(date: @date1, comp_start: @pos, comp_end: @pos += 1, found_in: __method__)
       end
     end
 
@@ -2080,6 +2140,9 @@ module Nickel
     def match_date
       @date1 = ZDate.interpret(@components[@pos], @curdate)
     end
+
+
+
 
     def match_date_through_date
       @components[@pos + 1] =~ /^(through|to|until)$/ && @date2 = ZDate.interpret(@components[@pos + 2], @curdate)
