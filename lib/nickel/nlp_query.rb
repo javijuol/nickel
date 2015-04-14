@@ -433,8 +433,8 @@ module Nickel
       nsub!(/(\d)\s+(pm\b)/, '\1\2')          # removes any spaces before pm, YESYESYES shouldn't I check for preceeding digits?
     end
 
-    def replace_hyphens   # when between numbers or days of week
-      nsub!(/(-+#{DAY_OF_WEEK}|\d+-+\d+)/, ' through ')
+    def replace_hyphens   # when between days of week
+      nsub!(/-+#{DAY_OF_WEEK}/, ' through ')
     end
 
     def remove_commas_inside_dates
