@@ -385,6 +385,9 @@ module Nickel
       #   c.) 1/1/08 1/12/08 1/1/2008 1/12/2008 10/1/08 10/12/08 10/12/2008 10/12/2008
       #   d.) 1st 10th
       def interpret(str, current_date)
+        if str.nil?
+          return nil
+        end
         day_str, month_str, year_str = nil, nil, nil
         ambiguous = { month: false, year: false }   # assume false, we use this flag if we aren't certain about the year
 

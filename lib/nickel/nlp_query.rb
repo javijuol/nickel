@@ -434,7 +434,7 @@ module Nickel
     end
 
     def replace_hyphens   # when between days of week
-      nsub!(/-+#{DAY_OF_WEEK}/, ' through ')
+      nsub!(/\s*-+\s*(#{DAY_OF_WEEK})/, ' through \1')
     end
 
     def remove_commas_inside_dates
