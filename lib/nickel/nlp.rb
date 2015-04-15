@@ -13,18 +13,22 @@ module Nickel
     attr_reader :occurrences, :message, :last_pos
     attr_reader :datetext
 
-    def initialize(query, date_time = Time.now)
+    def initialize(query, date_time = Time.now, language)
       str_time = date_time.strftime('%Y%m%dT%H%M%S')
       validate_input query, str_time
       @query = query.dup
       @input_date = ZDate.new str_time[0..7]   # up to T, note format is already verified
       @input_time = ZTime.new str_time[9..14]  # after T
       @datetext = ''
-
+      @language = language
     end
 
     def parse
-      @nlp_query = NLPTranslate.new(@query).translate    # translates to English
+      if !@language == 'en' || @language.empty?
+        @nlp_query = NLPTranslate.new(@query).translate    # translates to English
+      else
+        @nlp_query = @query
+      end
       @nlp_query = NLPQuery.new(@nlp_query, @input_date).standardize   # standardizes the query
       @construct_finder = ConstructFinder.new(@nlp_query, @input_date, @input_time)
       @construct_finder.run

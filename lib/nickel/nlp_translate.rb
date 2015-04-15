@@ -22,6 +22,14 @@ module Nickel
       case language
         when 'es'           # Spanish
           @query_str = 'tomorrow' if @query_str.downcase == 'morning'   ## because translates "manana" as "morning"
+          @query_str.gsub!(/\bfirst thing in the morning\b/, '8am through 10am')
+          @query_str.gsub!(/\bearly\b/, '8am through 10am')
+          @query_str.gsub!(/\blate in the morning\b/,'1pm through 2pm')
+          @query_str.gsub!(/\bmid-morning\b/,'12pm')
+          @query_str.gsub!(/\bmorning\b/,'8am through 2pm')
+          @query_str.gsub!(/\blunchtime\b/,'1:30pm through 3:30pm')
+          @query_str.gsub!(/\blate afternoon\b/,'6pm through 8pm')
+          @query_str.gsub!(/\bafternoon\b/,'3pm through 8pm')
       end
 
       p @query_str, language
