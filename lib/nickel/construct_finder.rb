@@ -2122,7 +2122,11 @@ module Nickel
 
 
     def match_time
-      @time1 = ZTime.interpret(@components[@pos])
+      # this is dangerous - it may simply be a number, not a time
+      # only accept if another construct exists
+      if @constructs.length > 0
+        @time1 = ZTime.interpret(@components[@pos])
+      end
     end
 
     def match_time_through_time

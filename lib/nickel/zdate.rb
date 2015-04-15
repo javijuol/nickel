@@ -380,7 +380,7 @@ module Nickel
       #
       #
       # Match all of the following:
-      #   a.) 1   10
+      #   a.) 1   10      - KILL THIS CASE!!!
       #   b.) 1/1  1/12  10/1  10/12
       #   c.) 1/1/08 1/12/08 1/1/2008 1/12/2008 10/1/08 10/12/08 10/12/2008 10/12/2008
       #   d.) 1st 10th
@@ -392,7 +392,7 @@ module Nickel
         ambiguous = { month: false, year: false }   # assume false, we use this flag if we aren't certain about the year
 
         # appropriate matches
-        a_d = /^(\d{1,2})(rd|st|nd|th)?$/     # handles cases a and d
+        a_d = /^(\d{1,2})(rd|st|nd|th)$/     # handles case d
         b = /^(\d{1,2})\/(\d{1,2})$/          # handles case b
         c = /^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/   # handles case c
 
