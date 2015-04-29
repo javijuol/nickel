@@ -504,9 +504,9 @@ module Nickel
       nsub!(/at\s+(\d{1,2}):(\d{2})this\s*morning/, 'today at \1:\2am')
 
       # standalone today references
-      nsub!(/tonight/, 'today at 8pm through 12am')
+      nsub!(/tonight/, 'today at 8pm through 11:59pm')
       nsub!(/this\s*afternoon/, 'today at 12pm through 6pm')
-      nsub!(/this\s*evening/, 'today at 6pm through 12am')
+      nsub!(/this\s*evening/, 'today at 6pm through 11:59a\pm')
       nsub!(/this\s*morning/, 'today at 8am through 12pm')
 
       # [day] + morning, afternoon, evening, and night at ... imply either am or pm
@@ -525,12 +525,12 @@ module Nickel
       nsub!(/\s*in\s+(the\s+)?(morning|am)/, ' at 8am through 12pm')
       nsub!(/\s*in\s+(the\s+)?(afternoon|pm)/, ' at 12pm through 6pm')
       nsub!(/\s*in\s+(the\s+)even+ing/, ' at 5pm through 8pm')
-      nsub!(/\s*at\s+night/, ' at 8pm through 12am')
+      nsub!(/\s*at\s+night/, ' at 8pm through 11:59pm')
 
       nsub!(/(\b1\b|\bany\b|\ba\b)?\s*morning/, ' at 8am through 12pm')
       nsub!(/(\b1\b|\bany\b|\ba\b)?\s*(after\s*)?noon(ish)?/, ' at 12pm through 6pm')
-      nsub!(/(\b1\b|\bany\b|\ba\b)?\s*evening/, ' at 6pm through 12am')
-      nsub!(/(\b1\b|\bany\b|\ba\b)?\s*night/, ' at 8pm through 12am')
+      nsub!(/(\b1\b|\bany\b|\ba\b)?\s*evening/, ' at 6pm through 11:59pm')
+      nsub!(/(\b1\b|\bany\b|\ba\b)?\s*night/, ' at 8pm through 11:59pm')
 
 
 

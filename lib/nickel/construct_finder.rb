@@ -386,7 +386,7 @@ module Nickel
         elsif match_dayname_x_weeks_from_this
           found_dayname_x_weeks_from_this               # monday 2 weeks from this
         elsif match_dayname_after_next
-          found dayname_after_next
+          found_dayname_after_next
         else
           found_dayname                                 # monday (also monday tuesday wed...)
         end
@@ -2016,12 +2016,14 @@ module Nickel
     def found_dayname_the_ordinal_month
       # check for year
       if @components[@pos + 3] =~ /(of|in)/ && @components[@pos + 4] =~ /\d{4}/
-        add_months = 12 * (components[@pos + 4].to_i - @curdate.year)
+        add_months = 12 * (components[@pos + 4].to_i - @date1.year)
         @components.delete_at(@pos + 3)
       elsif @components[@pos + 3] =~ /\d{4}/
-        add_months = 12 * (components[@pos + 3].to_i - @curdate.year)
+        add_months = 12 * (components[@pos + 3].to_i - @date1.year)
+      else
+        add_months = 0
       end
-      add_months += ((@month_index + 12) - (@curdate.month - 1)) % 12
+      add_months += ((@month_index + 12) - (@date1.month - 1)) % 12
       @constructs << DateConstruct.new(date: @date1.add_months(add_months), comp_start: @pos, comp_end: @pos += 3, found_in: __method__)
     end
 

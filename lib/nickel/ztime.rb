@@ -170,6 +170,9 @@ module Nickel
       # send an array of ZTime objects, this will make a guess at whether they should be am/pm if the user did not specify
       # NOTE ORDER IS IMPORTANT: times[0] is assumed to be BEFORE times[1]
       def am_pm_modifier(*time_array)
+
+        return time_array
+
         # find firm time indices
         firm_time_indices = []
         time_array.each_with_index { |t, i| firm_time_indices << i if t.firm }
