@@ -533,6 +533,11 @@ module Nickel
       nsub!(/(\b1\b|\bany\b|\ba\b)?\s*night/, ' at 8pm through 11:59pm')
 
 
+      # Handle dates in form XX Month XXXX
+      nsub!(/#{DATE_DD}\s*#{MONTH_OF_YEAR}\s*#{YEAR}/) do |m1, m2, m3|
+        (ZDate.months_of_year.index(m2) + 1).to_s + '/' + m1.delete("a-z") + '/' + m3
+      end
+
 
       # Handle 'THE' Cases
       # Attempt to pick out where a user entered 'the' when they really mean 'every'.
@@ -540,9 +545,6 @@ module Nickel
       # The first of every month and the 22nd of THE month  =>  repeats monthly first xxxxxx repeats monthly 22nd xxxxxxx
 
       # the nth week of the month
-
-
-
       nsub!(/(?:the\s+)?#{DATE_DD_WITH_SUFFIX}\s+(?:of\s+)?(?:every|each)\s+month((?:.*)of\s+the\s+month(?:.*))/) do |m1, m2|
         ret_str = ' repeats monthly ' + m1
         ret_str << m2.gsub(/(?:and\s+)?(?:the\s+)?#{DATE_DD_WITH_SUFFIX}\s+of\s+the\s+month/, ' repeats monthly \1 ')

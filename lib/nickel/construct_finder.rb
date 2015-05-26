@@ -439,7 +439,11 @@ module Nickel
             @constructs.delete_at(i)   ## delete the wrapper
             next                      ## exit the process
           else
-            ed = @constructs[following].date
+            if @constructs[following].class.to_s.match('DateSpan')    # a datespan - wrap to end of span
+              ed = @constructs[following].end_date
+            else
+              ed = @constructs[following].date
+            end
             comp_end = @constructs[following].comp_end
           end
           prior = find_prior_date(i) if i > 0
@@ -447,7 +451,11 @@ module Nickel
             sd = @curdate
             comp_start = @constructs[i].comp_start
           else
-            sd = @constructs[prior].date
+            if @constructs[prior].class.to_s.match('DateSpan')    # a datespan - wrap to start of span
+              sd = @constructs[prior].start_date
+            else
+              sd = @constructs[prior].date
+            end
             comp_start = @constructs[prior].comp_start
           end
           # replace the wrapper construct with this datespan

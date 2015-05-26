@@ -9,7 +9,7 @@ require 'nickel/nlp'
 
 module Nickel
   class << self
-    def parse(query, date_time = Time.now, language)
+    def parse(query, date_time = Time.now, language='en')
       n = NLP.new(query, date_time, language)
       n.parse
       n
