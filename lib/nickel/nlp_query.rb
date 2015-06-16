@@ -159,6 +159,8 @@ module Nickel
       nsub!(/next\s+date(\s+it)?(\s+occ?urr?s)?(\s+is)?/, 'start')
       nsub!(/forever/, 'repeats daily')
       nsub!(/\bany\s*day\b/, '')
+      nsub!(/\ba.m.\b/, 'am')
+      nsub!(/\bp.m.\b/, 'pm')
 #      nsub!(/^anytime$/, 'every day')  # user entered anytime by itself, not 'dayname anytime', caught next
 #      nsub!(/any(\s)?time|whenever/, 'all day')
       nsub!(/\bnoon\b/, '12:00pm')
@@ -942,10 +944,10 @@ module Nickel
       nsub!(/^(?:\s*)(?:right\s+)?now(?:\s*)$/, '0 minutes from now')
 
       # "a week/month from yesterday|tomorrow" --> 1 week from yesterday|tomorrow
-      nsub!(/(?:(?:a|1)\s+)?(week|month)\s+from\s+(yesterday|tomorrow)/, '1 \1 from \2')
+      nsub!(/(?:(?:a|1)\s+)(week|month)\s+from\s+(yesterday|tomorrow)/, '1 \1 from \2')
 
       # "a week/month from yesterday|tomorrow" --> 1 week from monday
-      nsub!(/(?:(?:a|1)\s+)?(week|month)\s+from\s+#{DAY_OF_WEEK}/, '1 \1 from \2')
+      nsub!(/(?:(?:a|1)\s+)(week|month)\s+from\s+#{DAY_OF_WEEK}/, '1 \1 from \2')
 
       # "every 2|3 days" --> every 2nd|3rd day
       nsub!(/every\s+(2|3)\s+days?/) { |m1| 'every ' + m1.to_i.ordinalize + ' day' }
